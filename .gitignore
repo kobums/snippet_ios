@@ -1,0 +1,27 @@
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+.DS_Store
+
+# --- 보안 / 민감 정보 (절대 커밋 금지) ---
+# Firebase / 푸시 설정
+GoogleService-Info.plist
+
+# 서명·APNs 키 및 인증서
+*.p8
+*.p12
+*.pem
+*.cer
+*.der
+*.certSigningRequest
+*.mobileprovision
+*.provisionprofile
+
+# 환경변수 / 시크릿 설정
+.env
+.env.*
+*.secret
+secrets.json
+Secrets.xcconfig
+Secrets.swift
