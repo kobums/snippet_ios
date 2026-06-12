@@ -284,9 +284,7 @@ struct BookGridCard: View {
 
     private var ddayBadge: (text: String, color: Color)? {
         guard book.type == .borrow, let returnDateStr = book.returnDate else { return nil }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        guard let returnDate = formatter.date(from: String(returnDateStr.prefix(10))) else { return nil }
+        guard let returnDate = APIDate.parseDay(String(returnDateStr.prefix(10))) else { return nil }
         let today = Calendar.current.startOfDay(for: Date())
         let target = Calendar.current.startOfDay(for: returnDate)
         let diff = Calendar.current.dateComponents([.day], from: today, to: target).day ?? 0

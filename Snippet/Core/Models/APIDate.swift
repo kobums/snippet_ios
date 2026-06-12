@@ -37,11 +37,20 @@ enum APIDate {
         makeFormatter("yyyy-MM-dd").string(from: date)
     }
 
+    // DateFormatter 생성은 비싸므로 포맷 문자열별로 캐시해 재사용한다.
+    // DateFormatter는 date(from:)/string(from:) 호출에 한해 thread-safe하다.
+    private static let cacheLock = NSLock()
+    private static var formatterCache: [String: DateFormatter] = [:]
+
     private static func makeFormatter(_ format: String) -> DateFormatter {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        if let cached = formatterCache[format] { return cached }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = .current
         formatter.dateFormat = format
+        formatterCache[format] = formatter
         return formatter
     }
 }

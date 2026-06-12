@@ -250,9 +250,7 @@ struct BookDetailView: View {
                         if page == localBook.totalPage && localBook.totalPage > 0 {
                             req.status = .completed
                             if localBook.endDate == nil {
-                                let formatter = DateFormatter()
-                                formatter.dateFormat = "yyyy-MM-dd"
-                                req.endDate = formatter.string(from: Date())
+                                req.endDate = APIDate.dayString()
                             }
                         }
                         await saveUpdate(req)
@@ -295,9 +293,7 @@ struct BookDetailView: View {
 
             Button {
                 if let startDateStr = localBook.startDate {
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "yyyy-MM-dd"
-                    tempStartDate = formatter.date(from: String(startDateStr.prefix(10))) ?? Date()
+                    tempStartDate = APIDate.parseDay(String(startDateStr.prefix(10))) ?? Date()
                 }
                 showStartDatePicker = true
             } label: {
@@ -317,9 +313,7 @@ struct BookDetailView: View {
             .buttonStyle(.plain)
             .sheet(isPresented: $showStartDatePicker) {
                 DatePickerSheet(title: "시작 날짜", date: $tempStartDate) {
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "yyyy-MM-dd"
-                    Task { await saveUpdate(.init(startDate: formatter.string(from: tempStartDate))) }
+                    Task { await saveUpdate(.init(startDate: APIDate.dayString(from: tempStartDate))) }
                 }
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
@@ -329,9 +323,7 @@ struct BookDetailView: View {
                 Divider()
                 Button {
                     if let endDateStr = localBook.endDate {
-                        let formatter = DateFormatter()
-                        formatter.dateFormat = "yyyy-MM-dd"
-                        tempEndDate = formatter.date(from: String(endDateStr.prefix(10))) ?? Date()
+                        tempEndDate = APIDate.parseDay(String(endDateStr.prefix(10))) ?? Date()
                     }
                     showEndDatePicker = true
                 } label: {
@@ -351,9 +343,7 @@ struct BookDetailView: View {
                 .buttonStyle(.plain)
                 .sheet(isPresented: $showEndDatePicker) {
                     DatePickerSheet(title: "완료 날짜", date: $tempEndDate) {
-                        let formatter = DateFormatter()
-                        formatter.dateFormat = "yyyy-MM-dd"
-                        Task { await saveUpdate(.init(endDate: formatter.string(from: tempEndDate))) }
+                        Task { await saveUpdate(.init(endDate: APIDate.dayString(from: tempEndDate))) }
                     }
                     .presentationDetents([.medium])
                     .presentationDragIndicator(.visible)
@@ -382,9 +372,7 @@ struct BookDetailView: View {
 
             Button {
                 if let returnDateStr = localBook.returnDate {
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "yyyy-MM-dd"
-                    tempReturnDate = formatter.date(from: String(returnDateStr.prefix(10))) ?? Date().addingTimeInterval(60 * 60 * 24 * 14)
+                    tempReturnDate = APIDate.parseDay(String(returnDateStr.prefix(10))) ?? Date().addingTimeInterval(60 * 60 * 24 * 14)
                 }
                 showReturnDatePicker = true
             } label: {
@@ -404,9 +392,7 @@ struct BookDetailView: View {
             .buttonStyle(.plain)
             .sheet(isPresented: $showReturnDatePicker) {
                 DatePickerSheet(title: "반납 예정일", date: $tempReturnDate) {
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "yyyy-MM-dd"
-                    Task { await saveUpdate(.init(returnDate: formatter.string(from: tempReturnDate))) }
+                    Task { await saveUpdate(.init(returnDate: APIDate.dayString(from: tempReturnDate))) }
                 }
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
@@ -438,9 +424,7 @@ struct BookDetailView: View {
 
     private var ddayBadge: (text: String, color: Color)? {
         guard let returnDateStr = localBook.returnDate else { return nil }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        guard let returnDate = formatter.date(from: String(returnDateStr.prefix(10))) else { return nil }
+        guard let returnDate = APIDate.parseDay(String(returnDateStr.prefix(10))) else { return nil }
         let today = Calendar.current.startOfDay(for: Date())
         let target = Calendar.current.startOfDay(for: returnDate)
         let diff = Calendar.current.dateComponents([.day], from: today, to: target).day ?? 0

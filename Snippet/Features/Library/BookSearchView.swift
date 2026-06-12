@@ -215,9 +215,7 @@ struct AddBookSheet: View {
     }
 
     private var dateStr: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: Date())
+        APIDate.dayString()
     }
 
     var body: some View {

@@ -24,9 +24,7 @@ struct PopularBooksView: View {
         case year = "1년"
 
         var dateRange: (start: String, end: String) {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            let end = formatter.string(from: Date())
+            let end = APIDate.dayString()
             let calendar = Calendar.current
             let days: Int
             switch self {
@@ -36,7 +34,7 @@ struct PopularBooksView: View {
             case .halfYear: days = 180
             case .year: days = 365
             }
-            let start = formatter.string(from: calendar.date(byAdding: .day, value: -days, to: Date()) ?? Date())
+            let start = APIDate.dayString(from: calendar.date(byAdding: .day, value: -days, to: Date()) ?? Date())
             return (start, end)
         }
     }
@@ -350,9 +348,7 @@ private struct AddPopularBookSheet: View {
     @State private var selectedStatus: BookStatus = .waiting
 
     private var dateStr: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: Date())
+        APIDate.dayString()
     }
 
     var body: some View {
