@@ -30,7 +30,7 @@ actor TokenRefreshCoordinator {
             request.httpMethod = "POST"
             request.timeoutInterval = APIConfig.requestTimeout
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONEncoder().encode(["refreshToken": refreshToken])
+            request.httpBody = try JSONCoding.encoder.encode(["refreshToken": refreshToken])
 
             let (data, response): (Data, URLResponse)
             do {
@@ -45,7 +45,7 @@ actor TokenRefreshCoordinator {
 
             let tokens: TokenRefreshResponse
             do {
-                tokens = try JSONDecoder().decode(TokenRefreshResponse.self, from: data)
+                tokens = try JSONCoding.decoder.decode(TokenRefreshResponse.self, from: data)
             } catch {
                 throw APIError.decoding(String(describing: error))
             }

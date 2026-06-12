@@ -26,7 +26,7 @@ struct OCRService: Sendable {
         form.appendFile(name: "image", filename: filename, mimeType: mimeType, data: imageData)
         form.appendField(name: "engine", value: engine.rawValue)
         if let regions, !regions.isEmpty {
-            let regionsData = try JSONEncoder().encode(regions)
+            let regionsData = try JSONCoding.encoder.encode(regions)
             if let regionsJSON = String(data: regionsData, encoding: .utf8) {
                 form.appendField(name: "regions", value: regionsJSON)
             }

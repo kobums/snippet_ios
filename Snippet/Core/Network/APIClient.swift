@@ -37,7 +37,7 @@ final class APIClient: Sendable {
     func request<T: Decodable>(_ endpoint: Endpoint) async throws -> T {
         let (data, _) = try await perform(endpoint)
         do {
-            return try JSONDecoder().decode(T.self, from: data)
+            return try JSONCoding.decoder.decode(T.self, from: data)
         } catch {
             throw APIError.decoding(String(describing: error))
         }
@@ -52,7 +52,7 @@ final class APIClient: Sendable {
     /// /snippets/archive (문서 §9.3-3: JSON 객체 디코더에 넣지 말 것).
     func requestLong(_ endpoint: Endpoint) async throws -> Int {
         let (data, _) = try await perform(endpoint)
-        if let value = try? JSONDecoder().decode(Int.self, from: data) {
+        if let value = try? JSONCoding.decoder.decode(Int.self, from: data) {
             return value
         }
         if let string = String(data: data, encoding: .utf8),

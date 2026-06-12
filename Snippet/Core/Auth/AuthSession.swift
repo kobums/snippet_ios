@@ -58,7 +58,7 @@ final class AuthSession {
     func checkAuth() -> Bool {
         guard tokenStore.accessToken() != nil,
               let data = defaults.data(forKey: Self.currentUserKey),
-              let user = try? JSONDecoder().decode(User.self, from: data)
+              let user = try? JSONCoding.decoder.decode(User.self, from: data)
         else {
             isAuthenticated = false
             currentUser = nil
@@ -122,7 +122,7 @@ final class AuthSession {
 
     /// 토큰을 제거한 프로필만 UserDefaults에 저장 (평문 토큰 저장 방지).
     private func persist(user: User) {
-        if let data = try? JSONEncoder().encode(user.withoutTokens) {
+        if let data = try? JSONCoding.encoder.encode(user.withoutTokens) {
             defaults.set(data, forKey: Self.currentUserKey)
         }
     }

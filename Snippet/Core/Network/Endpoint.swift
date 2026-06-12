@@ -39,7 +39,7 @@ struct Endpoint: Sendable {
     ) throws {
         let data: Data
         do {
-            data = try JSONEncoder().encode(json)
+            data = try JSONCoding.encoder.encode(json)
         } catch {
             throw APIError.unknown("요청 데이터 인코딩에 실패했습니다")
         }
