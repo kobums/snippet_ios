@@ -96,85 +96,83 @@ final class LibraryViewModel {
 
     // MARK: - 목록 로드 (전체 재로드)
 
-    func loadHave(refresh: Bool = false) async {
+    /// 탭별 페이지네이션 로드 공통 구현. 상태 프로퍼티는 key path로 주입받아
+    /// 소장/대출/위시 세 탭이 한 본문을 공유한다.
+    private func loadTab(
+        type: BookType,
+        books: ReferenceWritableKeyPath<LibraryViewModel, [UserBookDto]>,
+        page: ReferenceWritableKeyPath<LibraryViewModel, Int>,
+        hasMore: ReferenceWritableKeyPath<LibraryViewModel, Bool>,
+        isLoading: ReferenceWritableKeyPath<LibraryViewModel, Bool>,
+        error: ReferenceWritableKeyPath<LibraryViewModel, String?>,
+        errorMessage: String,
+        refresh: Bool
+    ) async {
         if refresh {
-            havePage = 0
-            haveBooks = []
-            hasMoreHave = true
+            self[keyPath: page] = 0
+            self[keyPath: books] = []
+            self[keyPath: hasMore] = true
         }
-        guard hasMoreHave else { return }
-        isLoadingHave = true
-        haveError = nil
-        defer { isLoadingHave = false }
+        guard self[keyPath: hasMore] else { return }
+        self[keyPath: isLoading] = true
+        self[keyPath: error] = nil
+        defer { self[keyPath: isLoading] = false }
 
-        let result = try? await userBookService.fetchPaged(page: havePage, size: pageSize)
+        let result = try? await userBookService.fetchPaged(page: self[keyPath: page], size: pageSize)
         let raw = result ?? []
-        let books = raw.filter { $0.type == .have }
-        if havePage == 0 {
-            haveBooks = books
+        let filtered = raw.filter { $0.type == type }
+        if self[keyPath: page] == 0 {
+            self[keyPath: books] = filtered
         } else {
-            haveBooks.append(contentsOf: books)
+            self[keyPath: books].append(contentsOf: filtered)
         }
         // hasMore/page 전진은 API 페이지(raw)의 채움 여부로 판단해야 한다.
-        // 타입 필터링된 books.count로 판단하면 page 0 이후 페이지네이션이 멈춘다.
-        if raw.count < pageSize { hasMoreHave = false }
-        else { havePage += 1 }
-        if result == nil { haveError = "소장 도서를 불러올 수 없습니다" }
+        // 타입 필터링된 개수로 판단하면 page 0 이후 페이지네이션이 멈춘다.
+        if raw.count < pageSize { self[keyPath: hasMore] = false }
+        else { self[keyPath: page] += 1 }
+        if result == nil { self[keyPath: error] = errorMessage }
+    }
+
+    func loadHave(refresh: Bool = false) async {
+        await loadTab(type: .have, books: \.haveBooks, page: \.havePage,
+                      hasMore: \.hasMoreHave, isLoading: \.isLoadingHave, error: \.haveError,
+                      errorMessage: "소장 도서를 불러올 수 없습니다", refresh: refresh)
     }
 
     func loadBorrow(refresh: Bool = false) async {
-        if refresh {
-            borrowPage = 0
-            borrowBooks = []
-            hasMoreBorrow = true
-        }
-        guard hasMoreBorrow else { return }
-        isLoadingBorrow = true
-        borrowError = nil
-        defer { isLoadingBorrow = false }
-
-        let result = try? await userBookService.fetchPaged(page: borrowPage, size: pageSize)
-        let raw = result ?? []
-        let books = raw.filter { $0.type == .borrow }
-        if borrowPage == 0 {
-            borrowBooks = books
-        } else {
-            borrowBooks.append(contentsOf: books)
-        }
-        if raw.count < pageSize { hasMoreBorrow = false }
-        else { borrowPage += 1 }
-        if result == nil { borrowError = "대출 도서를 불러올 수 없습니다" }
+        await loadTab(type: .borrow, books: \.borrowBooks, page: \.borrowPage,
+                      hasMore: \.hasMoreBorrow, isLoading: \.isLoadingBorrow, error: \.borrowError,
+                      errorMessage: "대출 도서를 불러올 수 없습니다", refresh: refresh)
     }
 
     func loadWish(refresh: Bool = false) async {
-        if refresh {
-            wishPage = 0
-            wishBooks = []
-            hasMoreWish = true
-        }
-        guard hasMoreWish else { return }
-        isLoadingWish = true
-        wishError = nil
-        defer { isLoadingWish = false }
-
-        let result = try? await userBookService.fetchPaged(page: wishPage, size: pageSize)
-        let raw = result ?? []
-        let books = raw.filter { $0.type == .wish }
-        if wishPage == 0 {
-            wishBooks = books
-        } else {
-            wishBooks.append(contentsOf: books)
-        }
-        if raw.count < pageSize { hasMoreWish = false }
-        else { wishPage += 1 }
-        if result == nil { wishError = "위시리스트를 불러올 수 없습니다" }
+        await loadTab(type: .wish, books: \.wishBooks, page: \.wishPage,
+                      hasMore: \.hasMoreWish, isLoading: \.isLoadingWish, error: \.wishError,
+                      errorMessage: "위시리스트를 불러올 수 없습니다", refresh: refresh)
     }
 
+    /// 서재 진입 시 전체 탭 초기 로드. `/userbooks/all` 한 페이지를 한 번만 받아
+    /// 세 탭으로 분배한다(같은 엔드포인트를 3번 호출하던 중복 제거).
     func loadAllTabs() async {
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { await self.loadHave(refresh: true) }
-            group.addTask { await self.loadBorrow(refresh: true) }
-            group.addTask { await self.loadWish(refresh: true) }
+        havePage = 0; borrowPage = 0; wishPage = 0
+        hasMoreHave = true; hasMoreBorrow = true; hasMoreWish = true
+        isLoadingHave = true; isLoadingBorrow = true; isLoadingWish = true
+        haveError = nil; borrowError = nil; wishError = nil
+        defer { isLoadingHave = false; isLoadingBorrow = false; isLoadingWish = false }
+
+        let result = try? await userBookService.fetchPaged(page: 0, size: pageSize)
+        let raw = result ?? []
+        haveBooks = raw.filter { $0.type == .have }
+        borrowBooks = raw.filter { $0.type == .borrow }
+        wishBooks = raw.filter { $0.type == .wish }
+        if raw.count < pageSize {
+            hasMoreHave = false; hasMoreBorrow = false; hasMoreWish = false
+        } else {
+            havePage = 1; borrowPage = 1; wishPage = 1
+        }
+        if result == nil {
+            let message = "서재를 불러올 수 없습니다"
+            haveError = message; borrowError = message; wishError = message
         }
     }
 
