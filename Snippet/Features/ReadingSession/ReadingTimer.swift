@@ -158,9 +158,7 @@ final class ReadingTimer {
         errorMessage = nil
 
         let durationSeconds = Int(elapsed)
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        let sessionDate = formatter.string(from: Date())
+        let sessionDate = APIDate.dayString()
 
         let request = ReadingSessionAddRequest(
             userBookId: userBookId,
@@ -211,8 +209,10 @@ final class ReadingTimer {
 
     private func startUITimer() {
         stopUITimer()
-        uiTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self else { return }
+        uiTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            // self가 사라졌으면(뷰가 외부 경로로 dismiss 등) 타이머가 스스로 무효화돼
+            // run loop에 no-op 타이머가 남지 않게 한다.
+            guard let self else { timer.invalidate(); return }
             Task { @MainActor in
                 self.elapsed = self.currentElapsed()
             }
