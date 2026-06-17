@@ -280,7 +280,14 @@ struct AddRecordView: View {
             relatedPage: Int(pageText)
         )
 
-        let _ = try? await service.add(request)
+        do {
+            _ = try await service.add(request)
+        } catch {
+            // 저장 실패 시 화면을 닫지 않고 오류를 노출해 기록 유실을 방지한다.
+            errorMessage = "기록 저장에 실패했습니다. 잠시 후 다시 시도해주세요."
+            showError = true
+            return
+        }
         onSaved?()
         dismiss()
     }
