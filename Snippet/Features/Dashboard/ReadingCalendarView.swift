@@ -13,7 +13,16 @@ struct ReadingCalendarView: View {
     @State private var month: Int
     @State private var monthlyBooks: [UserBookDto]
 
+    // 캘린더 이미지 공유
+    @State private var isPreparingShare = false
+    @State private var showShare = false
+    @State private var shareURLs: [URL] = []
+    /// 공유 이미지에 통계(완독 권수·총 페이지) 오버레이 표시 여부.
+    @State private var showStats = false
+
     private let userBookService = UserBookService()
+
+    @Environment(\.colorScheme) private var colorScheme
 
     init(initialYear: Int, initialMonth: Int, books: [UserBookDto]) {
         self.initialYear = initialYear
@@ -33,6 +42,11 @@ struct ReadingCalendarView: View {
                     .onChange(of: month) { _, _ in Task { await loadMonthly() } }
 
                 FullCalendarView(year: year, month: month, books: monthlyBooks)
+                    .padding(.horizontal, 16)
+
+                // 공유 이미지 통계 오버레이 토글
+                Toggle("캘린더에 통계 표시", isOn: $showStats)
+                    .font(.subheadline)
                     .padding(.horizontal, 16)
 
                 // 완독 책 수 요약
@@ -55,11 +69,70 @@ struct ReadingCalendarView: View {
         .navigationTitle("독서 캘린더")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await loadMonthly() }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if isPreparingShare {
+                    ProgressView()
+                } else {
+                    Button {
+                        Task { await prepareAndShare() }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showShare) {
+            if !shareURLs.isEmpty {
+                ActivityShareSheet(activityItems: shareURLs)
+                    .ignoresSafeArea()
+            }
+        }
     }
 
     private func loadMonthly() async {
         let loaded = try? await userBookService.fetchMonthly(year: year, month: month)
         monthlyBooks = loaded ?? []
+    }
+
+    /// 표지를 사전 다운로드한 뒤 캘린더 이미지를 렌더링해 공유 시트를 띄운다.
+    private func prepareAndShare() async {
+        isPreparingShare = true
+        defer { isPreparingShare = false }
+
+        // 1) 표지 사전 다운로드 (ImageRenderer는 비동기 로드를 기다리지 않음)
+        let shareBooks = await CalendarCoverPrefetcher.prefetch(
+            books: monthlyBooks,
+            year: year,
+            month: month
+        )
+
+        // 2) 렌더링 + PNG 저장 (메인 액터)
+        // 통계 값 (완독 권수 / 총 페이지) — 토글 시 오버레이에 사용
+        let completedBooks = monthlyBooks.filter { $0.status == .completed }
+        let completedCount = completedBooks.count
+        let totalPages = completedBooks.reduce(0) { $0 + $1.totalPage }
+
+        let url: URL? = await MainActor.run {
+            let view = ShareableCalendarView(
+                year: year,
+                month: month,
+                books: shareBooks,
+                isDark: colorScheme == .dark,
+                showStats: showStats,
+                completedCount: completedCount,
+                totalPages: totalPages
+            )
+            let renderer = ImageRenderer(content: view)
+            renderer.scale = 3.0
+            guard let image = renderer.uiImage else { return nil }
+            return ShareCardRenderer.saveTempPNG(image)
+        }
+
+        if let url {
+            shareURLs = [url]
+            showShare = true
+        }
     }
 }
 

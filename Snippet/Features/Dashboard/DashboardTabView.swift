@@ -117,6 +117,13 @@ private struct DashboardStatsSection: View {
                 StreakCard(streak: vm.streak)
                     .padding(.horizontal, 16)
 
+                // 추천 도서
+                if !vm.recommendedBooks.isEmpty {
+                    RecommendationSection(books: vm.recommendedBooks) {
+                        Task { await vm.loadRecommendations() }
+                    }
+                }
+
                 // 독서 캘린더 미리보기
                 VStack(alignment: .leading, spacing: 8) {
                     SectionHeaderView(
@@ -372,6 +379,71 @@ private struct StreakCard: View {
         }
         .padding(16)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+// MARK: - 추천 도서 섹션
+
+private struct RecommendationSection: View {
+
+    let books: [BookRecommendDto]
+    let onRefresh: () -> Void
+
+    /// .sheet(item:)용 Identifiable 래퍼 (String은 Identifiable이 아님).
+    private struct SearchTitle: Identifiable {
+        let id = UUID()
+        let title: String
+    }
+
+    @State private var libraryVM = LibraryViewModel()
+    @State private var searchTitle: SearchTitle? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeaderView(title: "✨ 추천 도서", actionTitle: "새로고침") {
+                onRefresh()
+            }
+            .padding(.horizontal, 16)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(books) { book in
+                        Button {
+                            searchTitle = SearchTitle(title: book.title)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                AsyncImage(url: URL(string: book.coverUrl)) { phase in
+                                    switch phase {
+                                    case .success(let img):
+                                        img.resizable().scaledToFill()
+                                    default:
+                                        Color(.secondarySystemBackground)
+                                            .overlay(Image(systemName: "book.closed").foregroundStyle(.tertiary))
+                                    }
+                                }
+                                .frame(width: 90, height: 130)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                                Text(book.title)
+                                    .font(.caption.weight(.medium))
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                Text(book.author)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            .frame(width: 90)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+        .sheet(item: $searchTitle) { item in
+            BookSearchView(viewModel: libraryVM, preselectedType: .wish, initialQuery: item.title)
+        }
     }
 }
 
