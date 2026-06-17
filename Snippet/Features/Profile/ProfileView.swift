@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 /// 탭 4 — 프로필 (MyPageScreen).
 /// 01-screens.md §7 스펙 기반. List/Form 네이티브 표준.
@@ -12,6 +13,12 @@ struct ProfileView: View {
     @State private var isDeleting           = false
     @State private var deleteError: String? = nil
     @State private var showSuggestion       = false
+
+    /// OCR 엔진 설정 (온디바이스 / Google / Naver) — OCRResultView와 공유.
+    @AppStorage(OCREnginePreference.storageKey) private var ocrEngine: OCREnginePreference = .onDevice
+
+    /// 알림 권한 상태 (설정 표시용).
+    @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
 
     var body: some View {
         NavigationStack {
@@ -27,6 +34,7 @@ struct ProfileView: View {
             }
             .navigationTitle("프로필")
             .navigationBarTitleDisplayMode(.large)
+            .task { await refreshNotificationStatus() }
             // 기능 제안 화면 push
             .navigationDestination(isPresented: $showSuggestion) {
                 SuggestionView()
@@ -117,6 +125,30 @@ struct ProfileView: View {
             }
             .pickerStyle(.menu)
 
+            // OCR 엔진 설정 — 온디바이스 / Google / Naver
+            Picker(selection: $ocrEngine) {
+                ForEach(OCREnginePreference.allCases) { engine in
+                    Text(engine.label).tag(engine)
+                }
+            } label: {
+                Label("OCR 엔진", systemImage: "text.viewfinder")
+            }
+            .pickerStyle(.menu)
+
+            // 알림 설정 — 권한 상태 표시 + 요청/시스템 설정 이동
+            Button {
+                handleNotificationTap()
+            } label: {
+                HStack {
+                    Label("알림", systemImage: "bell")
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Text(notificationStatusText)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             // 기능 제안
             Button {
                 showSuggestion = true
@@ -162,6 +194,36 @@ struct ProfileView: View {
                     .foregroundStyle(.red)
             }
             .disabled(isDeleting)
+        }
+    }
+
+    // MARK: - 알림 설정
+
+    private var notificationStatusText: String {
+        switch notificationStatus {
+        case .authorized, .provisional, .ephemeral: "허용됨"
+        case .denied: "꺼짐"
+        default: "설정하기"
+        }
+    }
+
+    private func refreshNotificationStatus() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        notificationStatus = settings.authorizationStatus
+    }
+
+    /// notDetermined → 권한 요청, 그 외 → 시스템 설정으로 이동.
+    private func handleNotificationTap() {
+        switch notificationStatus {
+        case .notDetermined:
+            Task {
+                _ = await LocalNotifications.requestAuthorization()
+                await refreshNotificationStatus()
+            }
+        default:
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
         }
     }
 

@@ -14,6 +14,32 @@ struct RecordDto: Codable, Identifiable, Equatable, Sendable {
     let relatedPage: Int?
     let createDate: String   // ISO LocalDateTime
 
+    /// 메모리상에서 RecordDto를 직접 구성하기 위한 멤버와이즈 이니셜라이저.
+    /// (예: 편집 화면에서 미저장 상태의 기록을 미리보기/공유할 때)
+    init(
+        id: Int,
+        bookId: Int,
+        bookTitle: String,
+        bookAuthor: String,
+        bookCoverUrl: String,
+        type: RecordType,
+        text: String,
+        tag: String?,
+        relatedPage: Int?,
+        createDate: String
+    ) {
+        self.id = id
+        self.bookId = bookId
+        self.bookTitle = bookTitle
+        self.bookAuthor = bookAuthor
+        self.bookCoverUrl = bookCoverUrl
+        self.type = type
+        self.text = text
+        self.tag = tag
+        self.relatedPage = relatedPage
+        self.createDate = createDate
+    }
+
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(Int.self, forKey: .id)

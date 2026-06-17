@@ -31,6 +31,9 @@ struct EditRecordView: View {
     @State private var capturedImage: UIImage? = nil
     @State private var showOCRResult = false
 
+    // 메모 이미지 내보내기
+    @State private var showNotesExport = false
+
     init(record: RecordDto, vm: RecordsViewModel, onDismiss: (() -> Void)? = nil) {
         self.record = record
         self.vm = vm
@@ -43,6 +46,22 @@ struct EditRecordView: View {
 
     private var isFormValid: Bool {
         !bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// 현재 편집 중(미저장 포함) 내용을 반영한 미리보기/공유용 기록.
+    private var draftRecord: RecordDto {
+        RecordDto(
+            id: record.id,
+            bookId: record.bookId,
+            bookTitle: record.bookTitle,
+            bookAuthor: record.bookAuthor,
+            bookCoverUrl: record.bookCoverUrl,
+            type: selectedType,
+            text: bodyText,
+            tag: tagText.isEmpty ? nil : tagText,
+            relatedPage: Int(pageText),
+            createDate: record.createDate
+        )
     }
 
     var body: some View {
@@ -119,6 +138,28 @@ struct EditRecordView: View {
                     }
                 }
 
+                // 메모 이미지 내보내기
+                Section {
+                    Button {
+                        showNotesExport = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "square.and.arrow.up")
+                                .foregroundStyle(Color.accentColor)
+                            Text("메모 이미지 내보내기")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.accentColor)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .disabled(bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                } footer: {
+                    Text("현재 작성 중인 내용을 4:5 이미지 카드로 공유합니다.")
+                }
+
             }
             .navigationTitle("기록 수정")
             .navigationBarTitleDisplayMode(.inline)
@@ -175,6 +216,10 @@ struct EditRecordView: View {
                 if newImage != nil {
                     showOCRResult = true
                 }
+            }
+            // 메모 이미지 내보내기 시트
+            .sheet(isPresented: $showNotesExport) {
+                NotesExportSheet(record: draftRecord)
             }
             // OCR 결과 편집 화면
             .sheet(isPresented: $showOCRResult, onDismiss: {

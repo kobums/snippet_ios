@@ -13,6 +13,9 @@ struct BookSearchView: View {
     /// 진입 즉시 바코드 스캐너를 띄울지 여부(서재 탭의 바코드 버튼에서 true).
     var autoStartScan: Bool = false
 
+    /// 진입 시 미리 채울 검색어(추천 도서 탭에서 책 제목 주입).
+    var initialQuery: String = ""
+
     @State private var query = ""
     @State private var selectedBook: BookSearchDto? = nil
     @State private var debounceTask: Task<Void, Never>? = nil
@@ -96,6 +99,9 @@ struct BookSearchView: View {
                 if autoStartScan && !didAutoStart {
                     didAutoStart = true
                     showScanner = true
+                }
+                if !initialQuery.isEmpty && query.isEmpty {
+                    query = initialQuery // .onChange(of: query)가 디바운스 검색을 트리거
                 }
             }
         }

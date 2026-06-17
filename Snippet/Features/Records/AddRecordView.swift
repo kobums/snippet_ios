@@ -2,14 +2,20 @@ import SwiftUI
 
 // MARK: - AddRecordView
 
-/// 기록 작성 화면 — 타입 선택, 책 제목/저자 입력, 본문, 태그, 페이지, 리뷰 별점.
+/// 기록 작성 화면 — 타입 선택, 서재 책 선택(또는 고정), 본문, 태그, 페이지.
+/// 기록은 반드시 서재의 실제 책(`bookId`)에 연결된다.
+/// - `books`: 책 선택 피커에 사용할 서재 후보 목록.
+/// - `lockedBook`: 책 상세에서 진입한 경우처럼 책이 고정된 경우 — 피커 없이 읽기 전용으로 표시.
 /// 내용 섹션의 카메라 버튼을 탭하면 카메라 촬영/사진 선택 메뉴가 표시되고,
 /// 선택한 이미지를 Vision OCR로 인식한 후 결과 텍스트를 본문에 삽입한다.
 struct AddRecordView: View {
 
     let initialType: RecordType
     var initialText: String = ""
-    var bookId: Int? = nil
+    /// 책 선택 피커 후보 (lockedBook이 nil일 때 사용).
+    var books: [UserBookDto] = []
+    /// 고정된 책 (책 상세에서 진입 시). non-nil이면 피커 대신 읽기 전용 헤더 표시.
+    var lockedBook: UserBookDto? = nil
     var onSaved: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
@@ -17,8 +23,7 @@ struct AddRecordView: View {
 
     // 폼 필드
     @State private var selectedType: RecordType
-    @State private var bookTitle: String = ""
-    @State private var bookAuthor: String = ""
+    @State private var selectedBook: UserBookDto?
     @State private var bodyText: String = ""
     @State private var tagText: String = ""
     @State private var pageText: String = ""
@@ -34,17 +39,32 @@ struct AddRecordView: View {
     @State private var capturedImage: UIImage? = nil
     @State private var showOCRResult = false
 
-    init(initialType: RecordType, initialText: String = "", bookId: Int? = nil, onSaved: (() -> Void)? = nil) {
+    init(
+        initialType: RecordType,
+        initialText: String = "",
+        books: [UserBookDto] = [],
+        lockedBook: UserBookDto? = nil,
+        onSaved: (() -> Void)? = nil
+    ) {
         self.initialType = initialType
         self.initialText = initialText
-        self.bookId = bookId
+        self.books = books
+        self.lockedBook = lockedBook
         self.onSaved = onSaved
         _selectedType = State(initialValue: initialType)
         _bodyText = State(initialValue: initialText)
+        // 고정 책이 있으면 그것을, 없으면 후보 첫 책을 기본 선택.
+        _selectedBook = State(initialValue: lockedBook ?? books.first)
+    }
+
+    /// 선택 가능한 책이 하나도 없는 상태 (서재가 비어 있음).
+    private var hasNoBooks: Bool {
+        lockedBook == nil && books.isEmpty
     }
 
     private var isFormValid: Bool {
-        !bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard !hasNoBooks, selectedBook != nil else { return false }
+        return !bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
@@ -103,7 +123,7 @@ struct AddRecordView: View {
     private var formContent: some View {
         Form {
             typeSectionView
-            bookInfoSectionView
+            bookSectionView
             contentSectionView
             detailSectionView
         }
@@ -121,12 +141,68 @@ struct AddRecordView: View {
         }
     }
 
-    private var bookInfoSectionView: some View {
-        Section("책 정보") {
-            TextField("책 제목 *", text: $bookTitle)
-                .autocorrectionDisabled()
-            TextField("저자", text: $bookAuthor)
-                .autocorrectionDisabled()
+    // MARK: - 책 선택 섹션
+
+    @ViewBuilder
+    private var bookSectionView: some View {
+        Section("책") {
+            if let lockedBook {
+                // 고정된 책 — 읽기 전용 헤더.
+                BookHeaderView(
+                    title: lockedBook.title,
+                    author: lockedBook.author,
+                    coverURLString: lockedBook.coverUrl
+                )
+                .padding(.vertical, 4)
+            } else if books.isEmpty {
+                // 서재가 비어 있음 — 안내 + 저장 비활성.
+                Label("서재에 책을 먼저 추가해주세요", systemImage: "books.vertical")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else if books.count == 1, let only = books.first {
+                // 책이 하나뿐이면 피커 없이 그대로 표시 (Flutter 패리티).
+                bookRow(only)
+                    .padding(.vertical, 4)
+            } else {
+                // 여러 권 — 피커로 선택 (UserBookDto가 Hashable이 아니므로 id로 선택).
+                Picker("책 선택", selection: selectedBookIdBinding) {
+                    ForEach(books) { book in
+                        Text(book.title).tag(book.id)
+                    }
+                }
+                .pickerStyle(.navigationLink)
+
+                if let selectedBook {
+                    bookRow(selectedBook)
+                        .padding(.vertical, 4)
+                }
+            }
+        }
+    }
+
+    /// 피커용 id 바인딩 — 선택한 책 id로 selectedBook을 갱신한다.
+    private var selectedBookIdBinding: Binding<Int> {
+        Binding(
+            get: { selectedBook?.id ?? books.first?.id ?? -1 },
+            set: { newId in selectedBook = books.first { $0.id == newId } }
+        )
+    }
+
+    private func bookRow(_ book: UserBookDto) -> some View {
+        HStack(spacing: 12) {
+            BookCoverView(urlString: book.coverUrl, size: .small)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(book.title)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(2)
+                if !book.author.isEmpty {
+                    Text(book.author)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
         }
     }
 
@@ -180,14 +256,14 @@ struct AddRecordView: View {
     }
 
     private func save() async {
-        let trimmed = bodyText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            errorMessage = "내용을 입력해주세요."
+        guard let book = selectedBook else {
+            errorMessage = "책을 선택해주세요."
             showError = true
             return
         }
-        guard !bookTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            errorMessage = "책 제목을 입력해주세요."
+        let trimmed = bodyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            errorMessage = "내용을 입력해주세요."
             showError = true
             return
         }
@@ -195,10 +271,9 @@ struct AddRecordView: View {
         isSaving = true
         defer { isSaving = false }
 
-        // bookId가 없을 때는 임시로 0 전송 (서버 측에서 처리)
-        // 실제 플로우에서는 책 상세에서 bookId를 전달받아야 함
+        // 선택한 서재 책의 bookId로 기록을 연결한다.
         let request = RecordAddRequest(
-            bookId: bookId ?? 0,
+            bookId: book.bookId,
             type: selectedType,
             text: trimmed,
             tag: tagText.isEmpty ? nil : tagText,

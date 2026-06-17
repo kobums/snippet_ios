@@ -85,18 +85,4 @@ private extension RecordDto {
         tag: "인상깊은", relatedPage: 42,
         createDate: "2026-06-10T10:30:00"
     )
-
-    init(id: Int, bookId: Int, bookTitle: String, bookAuthor: String, bookCoverUrl: String,
-         type: RecordType, text: String, tag: String?, relatedPage: Int?, createDate: String) {
-        self.id = id
-        self.bookId = bookId
-        self.bookTitle = bookTitle
-        self.bookAuthor = bookAuthor
-        self.bookCoverUrl = bookCoverUrl
-        self.type = type
-        self.text = text
-        self.tag = tag
-        self.relatedPage = relatedPage
-        self.createDate = createDate
-    }
 }
