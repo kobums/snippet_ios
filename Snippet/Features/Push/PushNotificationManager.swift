@@ -106,8 +106,12 @@ extension PushNotificationManager: UNUserNotificationCenterDelegate {
     ) {
         let userInfo = response.notification.request.content.userInfo
         print("[Push] 알림 탭 수신 — userInfo: \(userInfo)")
-        // TODO: 딥링크 라우팅 구현 (snippet://... URL scheme 등록 후 처리)
-        completionHandler()
+        // 딥링크 라우팅: userInfo["route"](또는 "tab") → 탭 전환.
+        // RootView가 DeepLinkRouter.pendingTab을 관찰해 실제 전환을 수행한다.
+        Task { @MainActor in
+            DeepLinkRouter.shared.handle(userInfo: userInfo)
+            completionHandler()
+        }
     }
 }
 
