@@ -89,5 +89,9 @@ struct SnippetWidget: Widget {
 struct SnippetWidgetBundle: WidgetBundle {
     var body: some Widget {
         SnippetWidget()
+        // 독서 세션 Live Activity (iOS 16.1+) — ReadingLiveActivity.swift
+        if #available(iOS 16.1, *) {
+            ReadingLiveActivity()
+        }
     }
 }
