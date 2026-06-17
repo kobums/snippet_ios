@@ -24,6 +24,7 @@ struct BookDetailView: View {
     @State private var tempStartDate: Date = Date()
     @State private var tempEndDate: Date = Date()
     @State private var showReadingTimer = false
+    @State private var showAddRecord = false
 
     init(userBook: UserBookDto, viewModel: LibraryViewModel) {
         self.userBook = userBook
@@ -74,6 +75,17 @@ struct BookDetailView: View {
         .navigationTitle(localBook.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            // 기록 탭에서만 "기록 추가" 노출 (세션 탭은 독서 타이머 사용).
+            if selectedDetailTab == .records {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Haptics.selection()
+                        showAddRecord = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(role: .destructive) {
                     showDeleteAlert = true
@@ -82,6 +94,15 @@ struct BookDetailView: View {
                         .foregroundStyle(.red)
                 }
             }
+        }
+        .sheet(isPresented: $showAddRecord, onDismiss: {
+            Task { await viewModel.loadBookRecords(bookId: localBook.bookId) }
+        }) {
+            AddRecordView(
+                initialType: selectedRecordTab,
+                lockedBook: localBook,
+                onSaved: { showAddRecord = false }
+            )
         }
         .alert("책 삭제", isPresented: $showDeleteAlert) {
             Button("삭제", role: .destructive) {

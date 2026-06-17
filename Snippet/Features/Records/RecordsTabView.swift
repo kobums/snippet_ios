@@ -9,6 +9,11 @@ struct RecordsTabView: View {
     @State private var selectedSubTab: SubTab = .snippet
     @State private var showAddRecord = false
 
+    // 기록 추가 시 책 선택 피커에 쓸 서재 목록
+    @State private var libraryBooks: [UserBookDto] = []
+    @State private var isLoadingBooks = false
+    private let userBookService = UserBookService()
+
     enum SubTab: Int, CaseIterable {
         case snippet, diary, review, session
 
@@ -79,10 +84,14 @@ struct RecordsTabView: View {
                 // + 버튼: 스니펫/일기/리뷰 탭에서만 노출
                 if selectedSubTab != .session {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            showAddRecord = true
-                        } label: {
-                            Image(systemName: "plus")
+                        if isLoadingBooks {
+                            ProgressView().scaleEffect(0.8)
+                        } else {
+                            Button {
+                                Task { await openAddRecord() }
+                            } label: {
+                                Image(systemName: "plus")
+                            }
                         }
                     }
                 }
@@ -92,6 +101,7 @@ struct RecordsTabView: View {
             }) {
                 AddRecordView(
                     initialType: selectedSubTab.recordType ?? .snippet,
+                    books: libraryBooks,
                     onSaved: { showAddRecord = false }
                 )
             }
@@ -102,6 +112,15 @@ struct RecordsTabView: View {
                 }
             }
         }
+    }
+
+    /// "+" 탭 시 서재 책 목록을 받아온 뒤 책 선택 피커가 있는 기록 추가 화면을 연다.
+    private func openAddRecord() async {
+        isLoadingBooks = true
+        defer { isLoadingBooks = false }
+        let books = (try? await userBookService.fetchPaged(page: 0, size: 200)) ?? []
+        libraryBooks = books
+        showAddRecord = true
     }
 }
 

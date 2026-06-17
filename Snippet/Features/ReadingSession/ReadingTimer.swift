@@ -81,6 +81,8 @@ final class ReadingTimer {
         if isPaused {
             elapsed = baseElapsed
             status = .paused
+            ReadingActivityController.shared.start(bookTitle: bookTitle, startPage: startPage, elapsed: baseElapsed)
+            ReadingActivityController.shared.updatePaused(elapsed: baseElapsed)
         } else {
             // 비정상적으로 큰 공백(앱 장기 종료)은 상한 처리하고, 누적을 base로 고정한 뒤
             // startEpoch을 현재로 재설정해 이후 tick 계산이 다시 튀지 않게 한다.
@@ -93,6 +95,7 @@ final class ReadingTimer {
             defaults.set(startEpoch, forKey: Key.startEpoch)
             status = .running
             startUITimer()
+            ReadingActivityController.shared.start(bookTitle: bookTitle, startPage: startPage, elapsed: baseElapsed)
         }
     }
 
@@ -110,6 +113,7 @@ final class ReadingTimer {
 
         persist(paused: false)
         startUITimer()
+        ReadingActivityController.shared.start(bookTitle: bookTitle, startPage: startPage, elapsed: 0)
     }
 
     // MARK: - 일시정지 / 재개
@@ -122,6 +126,7 @@ final class ReadingTimer {
         stopUITimer()
         defaults.set(baseElapsed, forKey: Key.base)
         defaults.set(true, forKey: Key.paused)
+        ReadingActivityController.shared.updatePaused(elapsed: baseElapsed)
     }
 
     func resume() {
@@ -131,6 +136,7 @@ final class ReadingTimer {
         defaults.set(startEpoch, forKey: Key.startEpoch)
         defaults.set(false, forKey: Key.paused)
         startUITimer()
+        ReadingActivityController.shared.updateRunning(elapsed: baseElapsed)
     }
 
     // MARK: - 완료 준비 (타이머 정지, 입력 화면 전환)
@@ -146,6 +152,8 @@ final class ReadingTimer {
         // 세션을 복구할 수 있게 한다. 일시정지 스냅샷으로 기록(recover 시 baseElapsed 기준).
         defaults.set(baseElapsed, forKey: Key.base)
         defaults.set(true, forKey: Key.paused)
+        // 타이머가 멈췄으므로 Live Activity 종료 (완료 입력 화면으로 전환).
+        ReadingActivityController.shared.end()
     }
 
     // MARK: - 완료 저장
@@ -188,6 +196,7 @@ final class ReadingTimer {
         elapsed     = 0
         status      = .idle
         errorMessage = nil
+        ReadingActivityController.shared.end()
     }
 
     // MARK: - 현재 elapsed 계산 (진실 원천)

@@ -60,7 +60,7 @@ struct BookCoverView: View {
     }
 
     var body: some View {
-        AsyncImage(url: url) { phase in
+        let cover = AsyncImage(url: url) { phase in
             switch phase {
             case .success(let image):
                 image
@@ -70,7 +70,17 @@ struct BookCoverView: View {
                 placeholder
             }
         }
-        .frame(width: size.width, height: size.height)
+
+        // width가 .infinity(예: 서재 그리드 카드)일 때 .frame(width: .infinity)는
+        // 레이아웃을 NaN으로 만들어 clipShape에서 "CALayer position NaN" 크래시(SIGABRT)를 유발한다.
+        // 무한대 폭은 maxWidth로 처리해 부모 폭을 채우도록 한다.
+        return Group {
+            if size.width.isFinite {
+                cover.frame(width: size.width, height: size.height)
+            } else {
+                cover.frame(maxWidth: .infinity).frame(height: size.height)
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: size.cornerRadius))
         .shadow(
             color: showsShadow ? .black.opacity(0.08) : .clear,
@@ -81,10 +91,12 @@ struct BookCoverView: View {
     }
 
     private var placeholder: some View {
-        ZStack {
+        // 무한대 폭일 때 아이콘 크기가 NaN/무한대가 되지 않도록 유한 폭으로 보정.
+        let iconBase = size.width.isFinite ? size.width : 100
+        return ZStack {
             Color(.secondarySystemBackground)
             Image(systemName: "book.closed")
-                .font(.system(size: size.width * 0.4))
+                .font(.system(size: iconBase * 0.4))
                 .foregroundStyle(Color(.tertiaryLabel))
         }
     }

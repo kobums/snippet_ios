@@ -22,6 +22,7 @@ final class DashboardViewModel {
     var insights: ReadingInsightsDto? = nil
     var readingGoal: ReadingGoalDto = .empty()
     var streak: StreakDto = .empty
+    var recommendedBooks: [BookRecommendDto] = []
 
     // 진행 탭
     var allProgressBooks: [UserBookDto] = []
@@ -37,6 +38,7 @@ final class DashboardViewModel {
     private let statsService = StatsService()
     private let goalService = ReadingGoalService()
     private let sessionService = ReadingSessionService()
+    private let bookService = BookService()
 
     // MARK: 공개 메서드
 
@@ -50,6 +52,7 @@ final class DashboardViewModel {
             group.addTask { await self.loadStreak() }
             group.addTask { await self.loadProgressBooks() }
             group.addTask { await self.loadLibraryBooks() }
+            group.addTask { await self.loadRecommendations() }
         }
     }
 
@@ -59,6 +62,7 @@ final class DashboardViewModel {
             group.addTask { await self.loadStatsData() }
             group.addTask { await self.loadGoal() }
             group.addTask { await self.loadStreak() }
+            group.addTask { await self.loadRecommendations() }
         }
     }
 
@@ -134,6 +138,11 @@ final class DashboardViewModel {
 
     private func loadStreak() async {
         streak = (try? await sessionService.streak()) ?? .empty
+    }
+
+    /// GET /books/recommend — 실패 시 빈 배열 폴백 (문서 §3.6).
+    func loadRecommendations() async {
+        recommendedBooks = (try? await bookService.recommend()) ?? []
     }
 
     private func loadProgressBooks() async {

@@ -55,7 +55,13 @@ final class PushNotificationManager: NSObject {
     /// - Parameter deviceToken: APNs가 발급한 기기 토큰.
     func apnsTokenReceived(_ deviceToken: Data) {
         let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
-        print("[Push] APNs 토큰 수신: \(tokenString)")
+        #if DEBUG
+        // 기기 토큰은 민감 정보 — DEBUG 빌드에서 앞·뒤 일부만 마스킹해 출력한다.
+        let masked = tokenString.count > 8
+            ? "\(tokenString.prefix(4))…\(tokenString.suffix(4))"
+            : "****"
+        print("[Push] APNs 토큰 수신: \(masked)")
+        #endif
 
         #if canImport(FirebaseMessaging)
         // FCM: APNs 토큰을 Firebase에 전달 → FCM 등록 토큰은 messaging(_:didReceiveRegistrationToken:)에서 서버 전송
@@ -105,9 +111,16 @@ extension PushNotificationManager: UNUserNotificationCenterDelegate {
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let userInfo = response.notification.request.content.userInfo
-        print("[Push] 알림 탭 수신 — userInfo: \(userInfo)")
-        // TODO: 딥링크 라우팅 구현 (snippet://... URL scheme 등록 후 처리)
-        completionHandler()
+        #if DEBUG
+        // userInfo에는 푸시 페이로드 전체가 담겨 민감 정보가 포함될 수 있어 DEBUG 빌드에서만 로깅한다.
+        print("[Push] 알림 탭 수신 — route: \(userInfo["route"] ?? userInfo["tab"] ?? "nil")")
+        #endif
+        // 딥링크 라우팅: userInfo["route"](또는 "tab") → 탭 전환.
+        // RootView가 DeepLinkRouter.pendingTab을 관찰해 실제 전환을 수행한다.
+        Task { @MainActor in
+            DeepLinkRouter.shared.handle(userInfo: userInfo)
+            completionHandler()
+        }
     }
 }
 
