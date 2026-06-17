@@ -64,6 +64,32 @@ final class TextRecognizer {
             }
         }
     }
+
+    /// 여러 밑줄 영역을 각각 OCR하여 위→아래(top Y 오름차순) 순으로 결합한다.
+    /// - Parameters:
+    ///   - image: 카메라 촬영 또는 갤러리 선택 이미지
+    ///   - regions: 인식할 영역 배열(정규화 좌표, **좌상단 원점** 0~1).
+    ///              비어 있으면 전체 이미지를 인식한다.
+    /// - Returns: 각 영역 인식 결과를 줄바꿈("\n")으로 결합한 텍스트
+    nonisolated func recognize(image: UIImage, regions: [CGRect]) async throws -> String {
+        // 영역이 없으면 전체 인식으로 폴백
+        guard !regions.isEmpty else {
+            return try await recognize(image: image, region: nil)
+        }
+
+        // 위→아래 순서 보장을 위해 top Y 오름차순으로 정렬
+        let ordered = regions.enumerated().sorted { $0.element.minY < $1.element.minY }
+
+        var results: [String] = []
+        for (_, region) in ordered {
+            let text = try await recognize(image: image, region: region)
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                results.append(trimmed)
+            }
+        }
+        return results.joined(separator: "\n")
+    }
 }
 
 // MARK: - UIImage Orientation Normalization

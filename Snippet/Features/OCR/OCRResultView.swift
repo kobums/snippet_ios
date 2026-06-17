@@ -26,17 +26,21 @@ struct OCRResultView: View {
     @State private var phase: Phase = .selecting
     @State private var recognizedText: String = ""
 
+    /// 사용자가 선택한 OCR 엔진 (온디바이스 / Google / Naver). 프로필 설정과 공유.
+    @AppStorage(OCREnginePreference.storageKey) private var enginePref: OCREnginePreference = .onDevice
+
     private let recognizer = TextRecognizer()
+    private let ocrService = OCRService()
 
     var body: some View {
         NavigationStack {
             Group {
                 switch phase {
                 case .selecting:
-                    RegionSelectionView(
+                    HighlighterSelectionView(
                         image: image,
-                        onRecognizeRegion: { region in recognize(region: region) },
-                        onRecognizeAll: { recognize(region: nil) }
+                        onRecognizeRegions: { regions in recognize(regions: regions) },
+                        onRecognizeAll: { recognize(regions: []) }
                     )
                 case .processing:
                     processingView
@@ -148,11 +152,18 @@ struct OCRResultView: View {
 
     // MARK: - OCR
 
-    private func recognize(region: CGRect?) {
+    /// 영역 배열로 OCR 실행. 빈 배열이면 전체 이미지 인식.
+    /// 엔진 설정에 따라 온디바이스(Vision) 또는 백엔드(Google/Naver) 경로를 사용한다.
+    private func recognize(regions: [CGRect]) {
         phase = .processing
         Task {
             do {
-                let text = try await recognizer.recognize(image: image, region: region)
+                let text: String
+                if let backendEngine = enginePref.backendEngine {
+                    text = try await recognizeOnServer(regions: regions, engine: backendEngine)
+                } else {
+                    text = try await recognizer.recognize(image: image, regions: regions)
+                }
                 await MainActor.run {
                     if text.isEmpty {
                         phase = .error("선택한 영역에서 텍스트를 인식하지 못했습니다.\n영역을 다시 지정해주세요.")
@@ -168,139 +179,24 @@ struct OCRResultView: View {
             }
         }
     }
-}
 
-// MARK: - RegionSelectionView
-
-/// 이미지 위를 드래그해 인식 영역을 지정하는 뷰.
-/// 표시된 이미지(aspect-fit) 프레임 기준 좌상단 원점 정규화 사각형을 콜백한다.
-private struct RegionSelectionView: View {
-    let image: UIImage
-    let onRecognizeRegion: (CGRect) -> Void
-    let onRecognizeAll: () -> Void
-
-    @State private var dragStart: CGPoint?
-    @State private var selection: CGRect = .zero
-    /// 표시 이미지 프레임 기준 좌상단 원점 정규화(0~1) 선택 영역
-    @State private var normalized: CGRect = .zero
-
-    private var hasSelection: Bool {
-        selection.width > 12 && selection.height > 12
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            GeometryReader { geo in
-                let frame = imageFrame(in: geo.size)
-                ZStack {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-
-                    // 선택 영역 외부 디밍 + 테두리
-                    if hasSelection {
-                        Rectangle()
-                            .fill(Color.black.opacity(0.45))
-                            .mask {
-                                Rectangle()
-                                    .overlay {
-                                        Rectangle()
-                                            .frame(width: selection.width, height: selection.height)
-                                            .position(x: selection.midX, y: selection.midY)
-                                            .blendMode(.destinationOut)
-                                    }
-                                    .compositingGroup()
-                            }
-                            .allowsHitTesting(false)
-
-                        Rectangle()
-                            .strokeBorder(Color.accentColor, lineWidth: 2)
-                            .frame(width: selection.width, height: selection.height)
-                            .position(x: selection.midX, y: selection.midY)
-                            .allowsHitTesting(false)
-                    }
-                }
-                .frame(width: geo.size.width, height: geo.size.height)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            let start = dragStart ?? clamp(value.startLocation, to: frame)
-                            dragStart = start
-                            let current = clamp(value.location, to: frame)
-                            let rect = CGRect(
-                                x: min(start.x, current.x),
-                                y: min(start.y, current.y),
-                                width: abs(current.x - start.x),
-                                height: abs(current.y - start.y)
-                            )
-                            selection = rect
-                            // 이미지 프레임 기준 좌상단 원점 정규화 (0~1)
-                            normalized = CGRect(
-                                x: (rect.minX - frame.minX) / frame.width,
-                                y: (rect.minY - frame.minY) / frame.height,
-                                width: rect.width / frame.width,
-                                height: rect.height / frame.height
-                            )
-                        }
-                        .onEnded { _ in
-                            dragStart = nil
-                        }
-                )
-            }
-            .background(Color(.secondarySystemBackground))
-
-            // 안내 + 버튼
-            VStack(spacing: 10) {
-                Text(hasSelection ? "선택한 영역만 인식합니다" : "인식할 문장을 드래그해 선택하세요")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-
-                HStack(spacing: 10) {
-                    Button {
-                        onRecognizeAll()
-                    } label: {
-                        Text("전체 인식")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button {
-                        guard hasSelection else { return }
-                        onRecognizeRegion(normalized)
-                    } label: {
-                        Text("선택 영역 인식")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!hasSelection)
-                }
-            }
-            .padding(16)
+    /// 백엔드 OCR(`POST /ocr/extract`). 정규화 영역(0~1)을 이미지 픽셀 좌표로 변환해 전송.
+    private func recognizeOnServer(regions: [CGRect], engine: OcrEngine) async throws -> String {
+        guard let data = image.jpegData(compressionQuality: 0.85) else {
+            return ""
         }
-    }
-
-    /// 컨테이너 크기 안에서 이미지가 aspect-fit으로 표시되는 실제 사각형
-    private func imageFrame(in container: CGSize) -> CGRect {
-        let imageSize = image.size
-        guard imageSize.width > 0, imageSize.height > 0 else {
-            return CGRect(origin: .zero, size: container)
+        // 픽셀 좌표 = 정규화 × (포인트 크기 × scale)
+        let pxW = Double(image.size.width * image.scale)
+        let pxH = Double(image.size.height * image.scale)
+        let pixelRegions: [OcrRegion]? = regions.isEmpty ? nil : regions.map { r in
+            OcrRegion(
+                left: Double(r.minX) * pxW,
+                top: Double(r.minY) * pxH,
+                right: Double(r.maxX) * pxW,
+                bottom: Double(r.maxY) * pxH
+            )
         }
-        let scale = min(container.width / imageSize.width, container.height / imageSize.height)
-        let displaySize = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
-        return CGRect(
-            x: (container.width - displaySize.width) / 2,
-            y: (container.height - displaySize.height) / 2,
-            width: displaySize.width,
-            height: displaySize.height
-        )
-    }
-
-    private func clamp(_ point: CGPoint, to frame: CGRect) -> CGPoint {
-        CGPoint(
-            x: min(max(point.x, frame.minX), frame.maxX),
-            y: min(max(point.y, frame.minY), frame.maxY)
-        )
+        let response = try await ocrService.extract(imageData: data, engine: engine, regions: pixelRegions)
+        return response.extractedText
     }
 }
