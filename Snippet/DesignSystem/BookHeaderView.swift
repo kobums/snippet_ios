@@ -15,7 +15,7 @@ struct BookHeaderView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.headline)
+                    .font(.serifHeadline)
                     .lineLimit(3)
                     .multilineTextAlignment(.leading)
 

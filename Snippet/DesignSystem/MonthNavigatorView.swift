@@ -39,8 +39,7 @@ struct MonthNavigatorView: View {
             }
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .padding(.vertical, 2)
         .sheet(isPresented: $showsPicker) {
             MonthYearPickerSheet(year: $year, month: $month)
                 .presentationDetents([.height(300)])
@@ -55,11 +54,11 @@ struct MonthNavigatorView: View {
         } label: {
             Image(systemName: systemImage)
                 .font(.subheadline.weight(.semibold))
-                .frame(width: 36, height: 36)
+                .frame(width: 18, height: 18)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
         .disabled(disabled)
-        .foregroundStyle(disabled ? Color(.quaternaryLabel) : .primary)
     }
 
     private func moveMonth(by delta: Int) {
@@ -83,7 +82,7 @@ struct MonthNavigatorView: View {
 
 // MARK: - 년/월 휠 피커 시트
 
-private struct MonthYearPickerSheet: View {
+struct MonthYearPickerSheet: View {
 
     @Binding var year: Int
     @Binding var month: Int

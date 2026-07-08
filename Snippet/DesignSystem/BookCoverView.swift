@@ -77,8 +77,12 @@ struct BookCoverView: View {
         return Group {
             if size.width.isFinite {
                 cover.frame(width: size.width, height: size.height)
-            } else {
+            } else if size.height.isFinite {
                 cover.frame(maxWidth: .infinity).frame(height: size.height)
+            } else {
+                // 폭·높이 모두 무한대: 부모 컨테이너(예: aspectRatio 래퍼)를 가득 채운다.
+                // scaledToFill 이미지가 프레임 밖으로 그려지지 않도록 명시적으로 클리핑.
+                cover.frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: size.cornerRadius))
