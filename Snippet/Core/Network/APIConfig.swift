@@ -3,8 +3,10 @@ import Foundation
 /// API 환경 설정 (문서 §1.1).
 enum APIConfig {
     /// Base URL — 모든 경로 상수는 `/api` 이후의 상대 경로.
+    /// 디버그 + 시뮬레이터에서만 로컬 백엔드 사용. 실기기는 항상 프로덕션
+    /// (실기기에서 로컬 백엔드를 쓰려면 백엔드를 띄우고 맥의 LAN IP로 교체).
     static var baseURL: URL {
-        #if DEBUG
+        #if DEBUG && targetEnvironment(simulator)
         URL(string: "http://10.0.1.29:8008/api")!
         #else
         URL(string: "https://snippetapi.gowoobro.com/api")!
