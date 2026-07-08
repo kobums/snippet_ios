@@ -325,7 +325,7 @@ struct RegisterView: View {
             Group {
                 if isRegistering {
                     ProgressView()
-                        .tint(.white)
+                        .tint(Color.onAccent)
                 } else {
                     Text("Register")
                         .fontWeight(.semibold)
@@ -335,6 +335,7 @@ struct RegisterView: View {
             .frame(height: 28)
         }
         .buttonStyle(.borderedProminent)
+        .foregroundStyle(Color.onAccent)
         .controlSize(.large)
         .disabled(isRegistering)
     }

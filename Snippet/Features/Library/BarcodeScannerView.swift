@@ -5,7 +5,7 @@ import VisionKit
 
 /// ISBN 바코드 스캔 시트.
 /// VisionKit `DataScannerViewController`로 EAN-13/EAN-8 바코드를 인식해 숫자 코드를 콜백한다.
-/// 별도 SDK 없이 iOS 16+ 기본 프레임워크만 사용한다(앱 타깃 iOS 17+).
+/// 별도 SDK 없이 기본 프레임워크만 사용한다(앱 타깃 iOS 26+).
 struct BarcodeScannerView: View {
 
     /// 인식된 숫자 코드(payload) 전달. 호출 측에서 시트를 닫고 검색에 사용한다.
@@ -26,7 +26,7 @@ struct BarcodeScannerView: View {
                             .foregroundStyle(.white)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 10)
-                            .background(.ultraThinMaterial, in: Capsule())
+                            .glassEffect(.regular, in: Capsule())
                             .padding(.bottom, 32)
                     }
                 } else {

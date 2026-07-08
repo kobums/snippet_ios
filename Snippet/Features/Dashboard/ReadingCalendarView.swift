@@ -185,8 +185,10 @@ struct FullCalendarView: View {
         return c.day
     }
 
+    private var cellBackground: Color { Color(.secondarySystemGroupedBackground) }
+
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 0) {
             // 요일 헤더
             HStack(spacing: 0) {
                 ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { idx, symbol in
@@ -196,34 +198,39 @@ struct FullCalendarView: View {
                         .frame(maxWidth: .infinity)
                 }
             }
-            .padding(.bottom, 4)
+            .padding(.vertical, 8)
 
-            // 날짜 그리드
+            // 날짜 그리드 — 공유 카드와 동일한 타일 스타일 (3pt 갭)
             let totalCells = firstWeekday + daysInMonth
             let rows = Int(ceil(Double(totalCells) / 7.0))
-            ForEach(0..<rows, id: \.self) { row in
-                HStack(spacing: 4) {
-                    ForEach(0..<7, id: \.self) { col in
-                        let cellIndex = row * 7 + col
-                        let day = cellIndex - firstWeekday + 1
-                        if day >= 1 && day <= daysInMonth {
-                            LargeDayCell(
-                                day: day,
-                                month: month,
-                                books: completedByDay[day] ?? [],
-                                isToday: day == todayDay
-                            )
-                        } else {
-                            Color.clear
-                                .frame(maxWidth: .infinity)
-                                .aspectRatio(0.75, contentMode: .fit)
+            VStack(spacing: 3) {
+                ForEach(0..<rows, id: \.self) { row in
+                    HStack(spacing: 3) {
+                        ForEach(0..<7, id: \.self) { col in
+                            let cellIndex = row * 7 + col
+                            let day = cellIndex - firstWeekday + 1
+                            Group {
+                                if day >= 1 && day <= daysInMonth {
+                                    LargeDayCell(
+                                        day: day,
+                                        month: month,
+                                        books: completedByDay[day] ?? [],
+                                        isToday: day == todayDay
+                                    )
+                                } else {
+                                    Color.clear
+                                        .frame(maxWidth: .infinity)
+                                        .aspectRatio(0.78, contentMode: .fit)
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-        .padding(16)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+        .padding(6)
+        .background(cellBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -242,58 +249,109 @@ private struct LargeDayCell: View {
         Button {
             if !books.isEmpty { showSheet = true }
         } label: {
-            ZStack(alignment: .topLeading) {
-                if let first = books.first {
-                    AsyncImage(url: URL(string: first.coverUrl)) { phase in
-                        if case .success(let img) = phase {
-                            img.resizable().scaledToFill()
-                        } else {
-                            Color(.systemGray5)
+            // 공유 카드(ShareableCalendarView)와 동일한 셀 디자인.
+            // 셀 크기는 Color.clear가 결정 — 표지·배지는 overlay라 레이아웃에 영향 없음
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .aspectRatio(0.78, contentMode: .fit)
+                .overlay {
+                    if books.isEmpty {
+                        emptyCell
+                    } else {
+                        GeometryReader { geo in
+                            stackedCovers(size: geo.size)
                         }
                     }
-                    .clipped()
-                    .overlay(alignment: .topLeading) {
-                        Text("\(day)")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(3)
-                            .background(Color.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 3))
-                            .padding(3)
-                    }
-                    .overlay(alignment: .bottom) {
-                        Text("\(books.count)권")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 2)
-                            .background(
-                                LinearGradient(
-                                    colors: [.clear, .black.opacity(0.6)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                    }
-                } else {
-                    Color(.systemBackground)
-                    Text("\(day)")
-                        .font(.system(size: 13, weight: isToday ? .bold : .regular))
-                        .foregroundStyle(isToday ? .primary : .secondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .overlay {
-                            if isToday {
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(.primary, lineWidth: 1.5)
-                            }
-                        }
                 }
-            }
-            .frame(maxWidth: .infinity)
-            .aspectRatio(0.75, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(alignment: .topLeading) {
+                    if !books.isEmpty {
+                        Text("\(day)")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1.5)
+                            .background(Color.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 3))
+                            .padding(3)
+                    }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if books.count > 1 {
+                        Text("\(books.count)권")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(Color.onAccent)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1.5)
+                            .background(Color.accentColor.opacity(0.95), in: RoundedRectangle(cornerRadius: 3))
+                            .padding(3)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showSheet) {
+            completedBooksSheet
+        }
+    }
+
+    // MARK: - 빈 날짜 셀 (공유 카드와 동일한 타일 스타일)
+
+    private var emptyCell: some View {
+        // 빈 날짜 — 연한 타일 + 흐린 숫자 (공유 카드와 동일). 오늘은 테두리 강조.
+        ZStack {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.primary.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
+                )
+            Text("\(day)")
+                .font(.system(size: 12, weight: isToday ? .bold : .regular))
+                .foregroundStyle(isToday ? AnyShapeStyle(.primary) : AnyShapeStyle(Color(.tertiaryLabel)))
+        }
+        .overlay {
+            if isToday {
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(.primary, lineWidth: 1.5)
+            }
+        }
+    }
+
+    // MARK: - 표지 스택 (최대 4장, 공유 카드와 동일한 오프셋/스케일)
+
+    private func stackedCovers(size: CGSize) -> some View {
+        let display = Array(books.reversed().prefix(4))
+        let layers = display.count
+        let scale = CGFloat(max(0.7, min(1.0, 1.0 - Double(layers - 1) * 0.1)))
+        let offsetX = size.width * 0.10
+        let offsetY = size.height * 0.10
+
+        return ZStack(alignment: .topLeading) {
+            ForEach(Array(display.enumerated()).reversed(), id: \.offset) { index, book in
+                coverImage(book)
+                    .frame(width: size.width * scale, height: size.height * scale)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 6 * scale))
+                    .offset(x: offsetX * CGFloat(index), y: offsetY * CGFloat(index))
+            }
+        }
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private func coverImage(_ book: UserBookDto) -> some View {
+        AsyncImage(url: URL(string: book.coverUrl)) { phase in
+            if case .success(let img) = phase {
+                img.resizable().scaledToFill()
+            } else {
+                Color(.systemGray5)
+            }
+        }
+    }
+
+    // MARK: - 완독 목록 시트
+
+    private var completedBooksSheet: some View {
+        Group {
             NavigationStack {
                 List(books) { book in
                     HStack(spacing: 12) {

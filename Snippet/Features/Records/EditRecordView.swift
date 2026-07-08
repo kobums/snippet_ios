@@ -97,10 +97,10 @@ struct EditRecordView: View {
                     } label: {
                         HStack {
                             Image(systemName: "camera")
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(Color.accentText)
                             Text("카메라로 텍스트 추출")
                                 .font(.subheadline)
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(Color.accentText)
                             Spacer()
                             Image(systemName: "chevron.right")
                                 .font(.caption)
@@ -145,10 +145,10 @@ struct EditRecordView: View {
                     } label: {
                         HStack {
                             Image(systemName: "square.and.arrow.up")
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(Color.accentText)
                             Text("메모 이미지 내보내기")
                                 .font(.subheadline)
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(Color.accentText)
                             Spacer()
                             Image(systemName: "chevron.right")
                                 .font(.caption)

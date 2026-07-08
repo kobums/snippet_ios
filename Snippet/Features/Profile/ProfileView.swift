@@ -32,8 +32,6 @@ struct ProfileView: View {
                 // MARK: 계정 액션 섹션
                 accountActionsSection
             }
-            .navigationTitle("프로필")
-            .navigationBarTitleDisplayMode(.large)
             .task { await refreshNotificationStatus() }
             // 기능 제안 화면 push
             .navigationDestination(isPresented: $showSuggestion) {
@@ -94,7 +92,7 @@ struct ProfileView: View {
                             .frame(width: 64, height: 64)
                         Text(String(user.name.prefix(1)))
                             .font(.title.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.onAccent)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -183,6 +181,7 @@ struct ProfileView: View {
                     }
                 } else {
                     Label("로그아웃", systemImage: "rectangle.portrait.and.arrow.right")
+                        .foregroundStyle(.red)
                 }
             }
 

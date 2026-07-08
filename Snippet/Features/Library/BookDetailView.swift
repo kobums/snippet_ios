@@ -241,7 +241,7 @@ struct BookDetailView: View {
                 if localBook.totalPage > 0 {
                     Text("\(Int(localBook.progress * 100))%")
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Color.accentText)
                 }
             }
 
@@ -282,7 +282,7 @@ struct BookDetailView: View {
                 } label: {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.title3)
-                        .foregroundStyle(isSaving ? Color.secondary : Color.accentColor)
+                        .foregroundStyle(isSaving ? Color.secondary : Color.accentText)
                 }
                 .disabled(isSaving)
             }
@@ -295,7 +295,7 @@ struct BookDetailView: View {
                 } label: {
                     Label("독서 시작", systemImage: "play.fill")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.onAccent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
                         .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 10))
@@ -480,7 +480,7 @@ struct BookDetailView: View {
                                     selectedRecordTab == type ? Color.accentColor : Color(.secondarySystemBackground),
                                     in: Capsule()
                                 )
-                                .foregroundStyle(selectedRecordTab == type ? .white : .primary)
+                                .foregroundStyle(selectedRecordTab == type ? Color.onAccent : .primary)
                         }
                         .buttonStyle(.plain)
                     }
@@ -579,7 +579,7 @@ private struct BookDetailRecordCard: View {
                 if let tag = record.tag, !tag.isEmpty {
                     Text("#\(tag)")
                         .font(.caption.weight(.medium))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Color.accentText)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(Color.accentColor.opacity(0.1), in: Capsule())
@@ -706,7 +706,7 @@ private struct RatingSheet: View {
             VStack(spacing: 20) {
                 Image(systemName: "checkmark.seal.fill")
                     .font(.system(size: 52))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.accentText)
 
                 Text("독서 완료!")
                     .font(.title2.weight(.bold))

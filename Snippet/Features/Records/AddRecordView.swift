@@ -222,10 +222,10 @@ struct AddRecordView: View {
         } label: {
             HStack {
                 Image(systemName: "camera")
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.accentText)
                 Text("카메라로 텍스트 추출")
                     .font(.subheadline)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.accentText)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption)

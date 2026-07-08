@@ -9,29 +9,79 @@ struct LibraryTabView: View {
     @State private var selectedTab: BookType = .have
     @State private var showBookSearch = false
     @State private var showPopularBooks = false
-    @State private var showBarcodeSearch = false
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // 세그먼트 탭
-                Picker("서재", selection: $selectedTab) {
-                    Text("소장").tag(BookType.have)
-                    Text("대출").tag(BookType.borrow)
-                    Text("위시").tag(BookType.wish)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+            GeometryReader { proxy in
+                let topInset = proxy.safeAreaInsets.top + 64
+                let bottomInset = proxy.safeAreaInsets.bottom + 8
 
-                // 탭별 콘텐츠
-                TabView(selection: $selectedTab) {
+                ZStack(alignment: .top) {
+                    libraryPages
+                        .contentMargins(.top, topInset, for: .scrollContent)
+                        .contentMargins(.bottom, bottomInset, for: .scrollContent)
+                        .ignoresSafeArea(edges: [.top, .bottom])
+
+                    floatingBar
+                }
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .sheet(isPresented: $showBookSearch) {
+                BookSearchView(viewModel: viewModel, preselectedType: selectedTab)
+            }
+            .sheet(isPresented: $showPopularBooks) {
+                PopularBooksView(viewModel: viewModel)
+            }
+        }
+        .task {
+            await viewModel.loadAllTabs()
+        }
+    }
+
+    // MARK: - 플로팅 바 — [탭바] [인기] [+] 한 줄
+
+    private var floatingBar: some View {
+        HStack(spacing: 10) {
+            FloatingSubTabBar(
+                tabs: [
+                    (BookType.have, "소장"),
+                    (BookType.borrow, "대출"),
+                    (BookType.wish, "위시"),
+                ],
+                selection: $selectedTab
+            )
+
+            Button {
+                showPopularBooks = true
+            } label: {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(.system(size: 17))
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+
+            Button {
+                showBookSearch = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 17))
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+        }
+        .padding(.top, 4)
+        .padding(.horizontal, 12)
+    }
+
+    private var libraryPages: some View {
+                ZStack {
                     LibrarySubTabView(
                         type: .have,
                         books: viewModel.filteredHaveBooks,
                         isLoading: viewModel.isLoadingHave,
                         error: viewModel.haveError,
-                        searchQuery: $viewModel.haveSearchQuery,
                         onRefresh: { await viewModel.loadHave(refresh: true) },
                         onLoadMore: { await viewModel.loadMoreIfNeeded(for: .have) },
                         onDelete: { id in
@@ -42,14 +92,14 @@ struct LibraryTabView: View {
                         },
                         viewModel: viewModel
                     )
-                    .tag(BookType.have)
+                    .opacity(selectedTab == .have ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .have)
 
                     LibrarySubTabView(
                         type: .borrow,
                         books: viewModel.filteredBorrowBooks,
                         isLoading: viewModel.isLoadingBorrow,
                         error: viewModel.borrowError,
-                        searchQuery: $viewModel.borrowSearchQuery,
                         onRefresh: { await viewModel.loadBorrow(refresh: true) },
                         onLoadMore: { await viewModel.loadMoreIfNeeded(for: .borrow) },
                         onDelete: { id in
@@ -60,14 +110,14 @@ struct LibraryTabView: View {
                         },
                         viewModel: viewModel
                     )
-                    .tag(BookType.borrow)
+                    .opacity(selectedTab == .borrow ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .borrow)
 
                     LibrarySubTabView(
                         type: .wish,
                         books: viewModel.filteredWishBooks,
                         isLoading: viewModel.isLoadingWish,
                         error: viewModel.wishError,
-                        searchQuery: $viewModel.wishSearchQuery,
                         onRefresh: { await viewModel.loadWish(refresh: true) },
                         onLoadMore: { await viewModel.loadMoreIfNeeded(for: .wish) },
                         onDelete: { id in
@@ -78,50 +128,10 @@ struct LibraryTabView: View {
                         },
                         viewModel: viewModel
                     )
-                    .tag(BookType.wish)
+                    .opacity(selectedTab == .wish ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .wish)
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut(duration: 0.2), value: selectedTab)
-            }
-            .navigationTitle("서재")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 4) {
-                        // 바코드 스캔 → 검색 화면을 스캐너와 함께 열기
-                        Button {
-                            showBarcodeSearch = true
-                        } label: {
-                            Image(systemName: "barcode.viewfinder")
-                        }
-
-                        Button {
-                            showPopularBooks = true
-                        } label: {
-                            Image(systemName: "chart.line.uptrend.xyaxis")
-                        }
-
-                        Button {
-                            showBookSearch = true
-                        } label: {
-                            Image(systemName: "plus")
-                        }
-                    }
-                }
-            }
-            .sheet(isPresented: $showBookSearch) {
-                BookSearchView(viewModel: viewModel, preselectedType: selectedTab)
-            }
-            .sheet(isPresented: $showPopularBooks) {
-                PopularBooksView(viewModel: viewModel)
-            }
-            .sheet(isPresented: $showBarcodeSearch) {
-                BookSearchView(viewModel: viewModel, preselectedType: selectedTab, autoStartScan: true)
-            }
-        }
-        .task {
-            await viewModel.loadAllTabs()
-        }
     }
 }
 
@@ -133,7 +143,6 @@ private struct LibrarySubTabView: View {
     let books: [UserBookDto]
     let isLoading: Bool
     let error: String?
-    @Binding var searchQuery: String
     let onRefresh: () async -> Void
     let onLoadMore: () async -> Void
     let onDelete: (Int) async -> Void
@@ -164,29 +173,6 @@ private struct LibrarySubTabView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 검색 바
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                    .font(.subheadline)
-                TextField("제목이나 저자로 검색...", text: $searchQuery)
-                    .font(.subheadline)
-                if !searchQuery.isEmpty {
-                    Button {
-                        searchQuery = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
-
             if isLoading && books.isEmpty {
                 Spacer()
                 ProgressView()
@@ -199,14 +185,6 @@ private struct LibrarySubTabView: View {
                     message: error,
                     actionTitle: "다시 시도",
                     action: { Task { await onRefresh() } }
-                )
-                Spacer()
-            } else if books.isEmpty && !searchQuery.isEmpty {
-                Spacer()
-                EmptyStateView(
-                    systemImage: "magnifyingglass",
-                    title: "검색 결과가 없습니다",
-                    message: "다른 검색어를 시도해보세요"
                 )
                 Spacer()
             } else if books.isEmpty {
@@ -301,21 +279,37 @@ struct BookGridCard: View {
         VStack(alignment: .leading, spacing: 0) {
             // 표지 + 상태 뱃지
             ZStack(alignment: .topTrailing) {
-                BookCoverView(
-                    urlString: book.coverUrl,
-                    size: .custom(width: .infinity, height: 160, cornerRadius: 8)
-                )
-                .frame(maxWidth: .infinity)
-                .frame(height: 160)
-                .clipped()
+                // 책 표지 비율(2:3 상당)로 영역을 잡아 표지가 잘리지 않게 한다
+                Color.clear
+                    .frame(maxWidth: .infinity)
+                    .aspectRatio(0.72, contentMode: .fit)
+                    .overlay {
+                        BookCoverView(
+                            urlString: book.coverUrl,
+                            size: .custom(width: .infinity, height: .infinity, cornerRadius: 8)
+                        )
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
 
                 if book.status != .none {
                     Text(statusLabel)
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(book.status == .reading ? Color.onAccent : .white)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
                         .background(statusBadgeColor, in: RoundedRectangle(cornerRadius: 4))
+                        .padding(6)
+                }
+
+                // D-day 뱃지 (대출) — 표지 우하단 오버레이
+                if let dday = ddayBadge {
+                    Text(dday.text)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(dday.color, in: RoundedRectangle(cornerRadius: 4))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                         .padding(6)
                 }
             }
@@ -323,7 +317,8 @@ struct BookGridCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(book.title)
                     .font(.caption.weight(.medium))
-                    .lineLimit(2)
+                    // 1줄짜리 제목도 항상 2줄 높이를 차지해 카드 높이가 통일된다
+                    .lineLimit(2, reservesSpace: true)
                     .multilineTextAlignment(.leading)
                     .foregroundStyle(.primary)
 
@@ -332,57 +327,55 @@ struct BookGridCard: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
-                // D-day 뱃지 (대출)
-                if let dday = ddayBadge {
-                    Text(dday.text)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(dday.color, in: RoundedRectangle(cornerRadius: 4))
-                }
+                // 상태별 부가 영역 — 내용과 무관하게 고정 높이라 모든 카드 높이가 같다
+                VStack(alignment: .leading, spacing: 4) {
+                    // 진행률 (읽는중) — 게이지와 %를 한 줄로
+                    if book.status == .reading && book.totalPage > 0 {
+                        HStack(spacing: 6) {
+                            ProgressView(value: book.progress)
+                                .tint(.accentColor)
+                                .scaleEffect(x: 1, y: 0.7)
 
-                // 진행률 (읽는중)
-                if book.status == .reading && book.totalPage > 0 {
-                    VStack(alignment: .leading, spacing: 2) {
-                        ProgressView(value: book.progress)
-                            .tint(.accentColor)
-                            .scaleEffect(x: 1, y: 0.7)
-
-                        Text("\(Int(book.progress * 100))%")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                // 상태 변경 버튼 (wish 아님)
-                if book.type != .wish {
-                    if book.status == .waiting {
-                        Button("읽기 시작") {
-                            onUpdate?(.init(status: .reading))
+                            Text("\(Int(book.progress * 100))%")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
-                        .font(.caption.weight(.medium))
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                    } else if book.status == .reading {
-                        HStack(spacing: 4) {
-                            Button("완독") {
-                                onUpdate?(.init(status: .completed))
+                    }
+
+                    // 상태 변경 버튼 (wish 아님)
+                    if book.type != .wish {
+                        if book.status == .waiting {
+                            Button("읽기 시작") {
+                                onUpdate?(.init(status: .reading))
                             }
-                            .font(.caption2.weight(.medium))
+                            .font(.caption.weight(.medium))
                             .buttonStyle(.borderedProminent)
-                            .controlSize(.mini)
+                            .foregroundStyle(Color.onAccent)
+                            .controlSize(.small)
+                        } else if book.status == .reading {
+                            HStack(spacing: 4) {
+                                Button("완독") {
+                                    onUpdate?(.init(status: .completed))
+                                }
+                                .font(.caption2.weight(.medium))
+                                .buttonStyle(.borderedProminent)
+                                .foregroundStyle(Color.onAccent)
+                                .controlSize(.mini)
 
-                            Button("중단") {
-                                onUpdate?(.init(status: .dropped))
+                                Button("중단") {
+                                    onUpdate?(.init(status: .dropped))
+                                }
+                                .font(.caption2.weight(.medium))
+                                .buttonStyle(.bordered)
+                                .controlSize(.mini)
+                                .tint(.secondary)
                             }
-                            .font(.caption2.weight(.medium))
-                            .buttonStyle(.bordered)
-                            .controlSize(.mini)
-                            .tint(.secondary)
                         }
                     }
+
+                    Spacer(minLength: 0)
                 }
+                .frame(height: 52, alignment: .top)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 8)

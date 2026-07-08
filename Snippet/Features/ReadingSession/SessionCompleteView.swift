@@ -106,7 +106,7 @@ struct SessionCompleteView: View {
                 VStack(spacing: 4) {
                     Text(elapsedFormatted)
                         .font(.system(size: 36, weight: .bold, design: .monospaced))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Color.accentText)
                     Text("독서 시간")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -153,7 +153,7 @@ struct SessionCompleteView: View {
                 // 프리뷰 칩
                 if let pages = pagesReadPreview, let pace = pacePreview {
                     HStack(spacing: 12) {
-                        chipView("읽은 페이지 \(pages)p", color: .accentColor)
+                        chipView("읽은 페이지 \(pages)p", color: .accentText)
                         chipView(String(format: "페이스 %.1f min/p", pace), color: .secondary)
                     }
                     .opacity(endPageText.isEmpty ? 0 : 1)
@@ -166,7 +166,7 @@ struct SessionCompleteView: View {
                 } label: {
                     Text("기록 저장")
                         .font(.headline)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.onAccent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                         .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 14))
@@ -210,7 +210,7 @@ struct SessionCompleteView: View {
                 // 성공 아이콘
                 Image(systemName: "checkmark.seal.fill")
                     .font(.system(size: 52))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.accentText)
                     .padding(.top, 16)
 
                 Text(bookTitle)
@@ -242,7 +242,7 @@ struct SessionCompleteView: View {
                 } label: {
                     Text("완료")
                         .font(.headline)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.onAccent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                         .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 14))
@@ -290,7 +290,7 @@ struct SessionCompleteView: View {
                             .font(.headline)
                     }
                 }
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.onAccent)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
                 .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 14))

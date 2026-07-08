@@ -189,7 +189,7 @@ private struct BookSearchResultRow: View {
 
             Image(systemName: "plus.circle")
                 .font(.title3)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.accentText)
         }
         .padding(.vertical, 4)
     }
@@ -306,6 +306,7 @@ struct AddBookSheet: View {
                             .padding(.vertical, 14)
                     }
                     .buttonStyle(.borderedProminent)
+                    .foregroundStyle(Color.onAccent)
                 }
                 .padding()
             }

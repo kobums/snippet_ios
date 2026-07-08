@@ -71,63 +71,48 @@ struct ShareableCalendarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 타이틀
+            // 타이틀 (Flutter ShareableReadingCalendar 비율)
             Text("\(String(year))년 \(month)월")
-                .font(.system(size: 24, weight: .regular))
-                .tracking(-0.5)
+                .font(.system(size: 15, weight: .medium))
+                .tracking(-0.3)
                 .foregroundStyle(textPrimary)
                 .frame(maxWidth: .infinity)
-                .padding(.top, 24)
+                .padding(.top, 10)
                 .padding(.bottom, 20)
 
-            // 캘린더 카드
-            VStack(spacing: 6) {
+            // 캘린더 카드 — 남은 세로 공간 전부 사용 (Flutter Expanded 대응)
+            VStack(spacing: 0) {
                 weekdayHeader
+                    .padding(.bottom, 6)
                 grid
             }
-            .padding(10)
-            .background(cardBg, in: RoundedRectangle(cornerRadius: 16))
-            .shadow(color: isDark ? .clear : .black.opacity(0.08), radius: 8, y: 2)
-            .padding(.horizontal, 12)
-
-            // 통계 오버레이 (옵션)
-            if showStats {
-                statsRow
-                    .padding(.top, 12)
-                    .padding(.horizontal, 12)
-            }
-
-            Spacer(minLength: 12)
+            .padding(4)
+            .background(cardBg)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal, 4)
+            .padding(.bottom, 4)
         }
         .frame(width: Self.cardWidth, height: Self.cardHeight)
         .background(bgColor)
         .clipped()
     }
 
-    // MARK: - Stats row
+    // MARK: - 통계 셀 (캘린더 마지막 행 안에 인라인 — Flutter와 동일)
 
-    private var statsRow: some View {
-        HStack(spacing: 0) {
-            statItem(value: "\(completedCount)", label: "완독")
-            Divider().frame(height: 32).overlay(textTertiary.opacity(0.4))
-            statItem(value: "\(totalPages)", label: "읽은 페이지")
-        }
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity)
-        .background(cardBg, in: RoundedRectangle(cornerRadius: 16))
-        .shadow(color: isDark ? .clear : .black.opacity(0.08), radius: 8, y: 2)
-    }
-
-    private func statItem(value: String, label: String) -> some View {
-        VStack(spacing: 2) {
+    private func statCell(icon: String, value: String, label: String) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 22))
+                .foregroundStyle(primary)
             Text(value)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(textPrimary)
+                .font(.system(size: 19, weight: .bold))
+                .tracking(-0.3)
+                .foregroundStyle(primary)
             Text(label)
-                .font(.system(size: 11))
-                .foregroundStyle(textSecondary)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(primary.opacity(0.7))
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Weekday header
@@ -150,24 +135,48 @@ struct ShareableCalendarView: View {
     // MARK: - Grid
 
     private var grid: some View {
-        let totalCells = firstWeekday + daysInMonth
-        let rows = Int(ceil(Double(totalCells) / 7.0))
-        return VStack(spacing: 4) {
-            ForEach(0..<rows, id: \.self) { row in
-                HStack(spacing: 4) {
-                    ForEach(0..<7, id: \.self) { col in
-                        let cellIndex = row * 7 + col
-                        let day = cellIndex - firstWeekday + 1
-                        if day >= 1 && day <= daysInMonth {
-                            dayCell(day: day, dayBooks: booksByDay[day] ?? [])
-                        } else {
-                            Color.clear
-                                .frame(maxWidth: .infinity)
-                                .aspectRatio(0.78, contentMode: .fit)
+        // Flutter와 동일: 6주 행 고정, 남은 높이를 6등분해 셀이 커진다.
+        GeometryReader { geo in
+            let colW = geo.size.width / 7
+            let rowH = geo.size.height / 6
+            VStack(spacing: 0) {
+                ForEach(0..<6, id: \.self) { row in
+                    HStack(spacing: 0) {
+                        ForEach(0..<7, id: \.self) { col in
+                            cell(row: row, col: col, colW: colW, rowH: rowH)
                         }
                     }
                 }
             }
+        }
+    }
+
+    /// 행/열 위치별 셀 — showStats 시 마지막 행의 목~토 4칸은 통계 셀 2개로 대체 (Flutter와 동일).
+    @ViewBuilder
+    private func cell(row: Int, col: Int, colW: CGFloat, rowH: CGFloat) -> some View {
+        if showStats && row == 5 && col >= 3 {
+            if col == 3 {
+                statCell(icon: "book.pages.fill", value: "\(completedCount)권", label: "완독한 책")
+                    .padding(1.5)
+                    .frame(width: colW * 2, height: rowH)
+            } else if col == 5 {
+                statCell(icon: "book.fill", value: "\(totalPages)쪽", label: "총 페이지")
+                    .padding(1.5)
+                    .frame(width: colW * 2, height: rowH)
+            }
+            // col 4, 6은 통계 셀이 2칸을 차지하므로 생략
+        } else {
+            let cellIndex = row * 7 + col
+            let day = cellIndex - firstWeekday + 1
+            Group {
+                if day >= 1 && day <= daysInMonth {
+                    dayCell(day: day, dayBooks: booksByDay[day] ?? [])
+                } else {
+                    Color.clear
+                }
+            }
+            .padding(1.5)
+            .frame(width: colW, height: rowH)
         }
     }
 
@@ -176,6 +185,7 @@ struct ShareableCalendarView: View {
     @ViewBuilder
     private func dayCell(day: Int, dayBooks: [CalendarShareBook]) -> some View {
         if dayBooks.isEmpty {
+            // 빈 날짜 — 연한 타일 + 흐린 숫자 (Flutter와 동일)
             ZStack {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(emptyCellBg)
@@ -184,11 +194,9 @@ struct ShareableCalendarView: View {
                             .stroke(emptyCellBorder, lineWidth: 0.5)
                     )
                 Text("\(day)")
-                    .font(.system(size: 11))
+                    .font(.system(size: 10))
                     .foregroundStyle(textTertiary)
             }
-            .frame(maxWidth: .infinity)
-            .aspectRatio(0.78, contentMode: .fit)
         } else {
             GeometryReader { geo in
                 ZStack(alignment: .topLeading) {
@@ -217,8 +225,6 @@ struct ShareableCalendarView: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 6))
-            .frame(maxWidth: .infinity)
-            .aspectRatio(0.78, contentMode: .fit)
         }
     }
 

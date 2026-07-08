@@ -208,7 +208,7 @@ struct ShareCardView: View {
 
             // 인용 텍스트
             Text("\"\(text)\"")
-                .font(.system(size: 18, weight: .light))
+                .font(.system(size: 18, design: .serif))
                 .foregroundStyle(primaryTextColor)
                 .lineSpacing(7)
                 .lineLimit(8)
@@ -217,7 +217,7 @@ struct ShareCardView: View {
             if !title.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.system(size: 15, weight: .semibold, design: .serif))
                         .foregroundStyle(primaryTextColor)
                         .lineLimit(1)
                     if !author.isEmpty {

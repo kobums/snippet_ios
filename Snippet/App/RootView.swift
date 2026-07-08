@@ -17,25 +17,35 @@ struct RootView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            SnippetTabView()
-                .tabItem { Label("스니펫", systemImage: "sparkles") }
-                .tag(SnippetTab.snippet)
+            Tab(value: SnippetTab.snippet) {
+                SnippetTabView()
+            } label: {
+                tabLabel("스니펫", outline: "quote.bubble", fill: "quote.bubble.fill", tab: .snippet)
+            }
 
-            DashboardTabView()
-                .tabItem { Label("대시보드", systemImage: "chart.bar") }
-                .tag(SnippetTab.dashboard)
+            Tab(value: SnippetTab.dashboard) {
+                DashboardTabView()
+            } label: {
+                tabLabel("대시보드", outline: "chart.bar", fill: "chart.bar.fill", tab: .dashboard)
+            }
 
-            RecordsTabView()
-                .tabItem { Label("독서기록", systemImage: "square.and.pencil") }
-                .tag(SnippetTab.records)
+            Tab(value: SnippetTab.records) {
+                RecordsTabView()
+            } label: {
+                tabLabel("독서기록", outline: "doc.text", fill: "doc.text.fill", tab: .records)
+            }
 
-            LibraryTabView()
-                .tabItem { Label("서재", systemImage: "books.vertical") }
-                .tag(SnippetTab.library)
+            Tab(value: SnippetTab.library) {
+                LibraryTabView()
+            } label: {
+                tabLabel("서재", outline: "books.vertical", fill: "books.vertical.fill", tab: .library)
+            }
 
-            ProfileView()
-                .tabItem { Label("프로필", systemImage: "person") }
-                .tag(SnippetTab.profile)
+            Tab(value: SnippetTab.profile) {
+                ProfileView()
+            } label: {
+                tabLabel("프로필", outline: "person", fill: "person.fill", tab: .profile)
+            }
         }
         .preferredColorScheme(themeManager.colorScheme)
         .environment(themeManager)
@@ -47,6 +57,13 @@ struct RootView: View {
         .task {
             consumePendingTab(deepLinkRouter.pendingTab)
         }
+    }
+
+    /// 탭바 라벨 — 선택된 탭은 채워진(fill) 심벌, 미선택은 아웃라인 심벌.
+    /// 탭바의 자동 fill 변형을 끄기 위해 symbolVariants를 .none으로 고정한다.
+    private func tabLabel(_ title: String, outline: String, fill: String, tab: SnippetTab) -> some View {
+        Label(title, systemImage: selectedTab == tab ? fill : outline)
+            .environment(\.symbolVariants, .none)
     }
 
     /// pendingTab이 있으면 selectedTab으로 반영하고 라우터를 비운다.

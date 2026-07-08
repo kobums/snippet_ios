@@ -22,38 +22,38 @@ struct SnippetTabView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // 서브탭 세그먼트
-                Picker("탭", selection: $selectedSubTab) {
-                    ForEach(SubTab.allCases, id: \.self) { tab in
-                        Text(tab.title).tag(tab)
+            GeometryReader { proxy in
+                let topInset = proxy.safeAreaInsets.top + 76
+                let bottomInset = proxy.safeAreaInsets.bottom + 8
+
+                ZStack(alignment: .top) {
+                    ZStack {
+                        // 주의: contentMargins를 ZStack 전체에 걸면 카드 안 인용문
+                        // ScrollView에도 전파되어 문장 위아래에 빈 공간이 생긴다.
+                        SnippetSwipeView(vm: vm)
+                            .padding(.top, topInset)
+                            .padding(.bottom, bottomInset)
+                            .opacity(selectedSubTab == .swipe ? 1 : 0)
+                            .allowsHitTesting(selectedSubTab == .swipe)
+
+                        ArchiveView(vm: vm)
+                            .contentMargins(.top, topInset, for: .scrollContent)
+                            .contentMargins(.bottom, bottomInset, for: .scrollContent)
+                            .opacity(selectedSubTab == .archive ? 1 : 0)
+                            .allowsHitTesting(selectedSubTab == .archive)
                     }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 12)
+                    .animation(.easeInOut(duration: 0.2), value: selectedSubTab)
+                    .ignoresSafeArea(edges: [.top, .bottom])
 
-                Divider()
-
-                // 탭 콘텐츠
-                TabView(selection: $selectedSubTab) {
-                    SnippetSwipeView(vm: vm)
-                        .tag(SubTab.swipe)
-
-                    ArchiveView(vm: vm)
-                        .tag(SubTab.archive)
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(.easeInOut(duration: 0.2), value: selectedSubTab)
-            }
-            .navigationTitle("SNIPPET")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("SNIPPET")
-                        .brandWordmarkStyle()
+                    // 플로팅 서브탭 바
+                    FloatingSubTabBar(
+                        tabs: SubTab.allCases.map { ($0, $0.title) },
+                        selection: $selectedSubTab
+                    )
+                    .padding(.top, 4)
                 }
             }
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 }

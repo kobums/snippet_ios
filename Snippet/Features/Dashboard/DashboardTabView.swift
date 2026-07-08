@@ -8,6 +8,8 @@ struct DashboardTabView: View {
 
     @State private var vm = DashboardViewModel()
     @State private var selectedSubTab: SubTab = .stats
+    /// 년월 휠 피커 시트.
+    @State private var showMonthPicker = false
 
     enum SubTab: Int, CaseIterable {
         case stats, progress, library
@@ -23,42 +25,89 @@ struct DashboardTabView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                Picker("탭", selection: $selectedSubTab) {
-                    ForEach(SubTab.allCases, id: \.self) { tab in
-                        Text(tab.title).tag(tab)
+            GeometryReader { proxy in
+                // 상태바 높이 + 플로팅 바 높이만큼 콘텐츠 시작 위치를 내린다
+                let topInset = proxy.safeAreaInsets.top + 64
+                let bottomInset = proxy.safeAreaInsets.bottom + 8
+
+                ZStack(alignment: .top) {
+                    // 페이지형 TabView는 엣지-투-엣지 구성에서 selection 변경을 무시하는
+                    // 문제가 있어, 선택된 섹션을 직접 표시(크로스페이드)한다.
+                    ZStack {
+                        DashboardStatsSection(vm: vm, topInset: topInset, bottomInset: bottomInset)
+                            .opacity(selectedSubTab == .stats ? 1 : 0)
+                            .allowsHitTesting(selectedSubTab == .stats)
+                        DashboardProgressSection(vm: vm, topInset: topInset, bottomInset: bottomInset)
+                            .opacity(selectedSubTab == .progress ? 1 : 0)
+                            .allowsHitTesting(selectedSubTab == .progress)
+                        DashboardLibrarySection(vm: vm, topInset: topInset, bottomInset: bottomInset)
+                            .opacity(selectedSubTab == .library ? 1 : 0)
+                            .allowsHitTesting(selectedSubTab == .library)
                     }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                    .animation(.easeInOut(duration: 0.2), value: selectedSubTab)
+                    // 콘텐츠가 상태바(시계·배터리) 아래까지 그려져 스크롤 시 비쳐 보인다
+                    .ignoresSafeArea(edges: [.top, .bottom])
 
-                Divider()
-
-                TabView(selection: $selectedSubTab) {
-                    DashboardStatsSection(vm: vm)
-                        .tag(SubTab.stats)
-                    DashboardProgressSection(vm: vm)
-                        .tag(SubTab.progress)
-                    DashboardLibrarySection(vm: vm)
-                        .tag(SubTab.library)
+                    floatingBar
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(.easeInOut(duration: 0.2), value: selectedSubTab)
             }
-            .navigationTitle("대시보드")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        StatsDetailView(vm: vm)
-                    } label: {
-                        Image(systemName: "chart.bar.xaxis")
-                    }
-                }
+            .toolbar(.hidden, for: .navigationBar)
+            .onChange(of: vm.selectedYear) { _, _ in
+                Task { await vm.changeMonth(year: vm.selectedYear, month: vm.selectedMonth) }
+            }
+            .onChange(of: vm.selectedMonth) { _, _ in
+                Task { await vm.changeMonth(year: vm.selectedYear, month: vm.selectedMonth) }
             }
             .task { await vm.loadAll() }
+            .sheet(isPresented: $showMonthPicker) {
+                MonthYearPickerSheet(year: $vm.selectedYear, month: $vm.selectedMonth)
+                    .presentationDetents([.height(300)])
+                    .presentationDragIndicator(.visible)
+            }
         }
+    }
+
+    // MARK: - 플로팅 바 — 상단에서 콘텐츠 위에 부유. [탭바] [년월] [통계버튼] 한 줄.
+
+    private var floatingBar: some View {
+        HStack(spacing: 10) {
+            subTabBar
+
+            // 년월 — 애플 휠 피커 시트
+            Button {
+                showMonthPicker = true
+            } label: {
+                Text("\(String(vm.selectedYear))년 \(vm.selectedMonth)월")
+                    .font(.subheadline.weight(.medium))
+                    .padding(.vertical, 6)
+            }
+            .buttonStyle(.glass)
+
+            statsDetailButton
+        }
+        .padding(.top, 4)
+        .padding(.horizontal, 12)
+    }
+
+    /// 서브탭 바 — 하단 탭바(bottom navigation)와 같은 글래스 캡슐 + 선택 필 슬라이드.
+    private var subTabBar: some View {
+        FloatingSubTabBar(
+            tabs: SubTab.allCases.map { ($0, $0.title) },
+            selection: $selectedSubTab
+        )
+    }
+
+    /// 통계 상세 진입 원형 글래스 버튼.
+    private var statsDetailButton: some View {
+        NavigationLink {
+            StatsDetailView(vm: vm)
+        } label: {
+            Image(systemName: "chart.bar.xaxis")
+                .font(.system(size: 17))
+                .frame(width: 24, height: 24)
+        }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
     }
 }
 
@@ -67,6 +116,8 @@ struct DashboardTabView: View {
 private struct DashboardStatsSection: View {
 
     @Bindable var vm: DashboardViewModel
+    let topInset: CGFloat
+    let bottomInset: CGFloat
     @State private var showGoalDialog = false
     @State private var goalInput = ""
     @State private var navigateToCalendar = false
@@ -75,16 +126,6 @@ private struct DashboardStatsSection: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 20) {
-                // 월 네비게이터
-                MonthNavigatorView(year: $vm.selectedYear, month: $vm.selectedMonth)
-                    .padding(.horizontal, 16)
-                    .onChange(of: vm.selectedYear) { _, _ in
-                        Task { await vm.changeMonth(year: vm.selectedYear, month: vm.selectedMonth) }
-                    }
-                    .onChange(of: vm.selectedMonth) { _, _ in
-                        Task { await vm.changeMonth(year: vm.selectedYear, month: vm.selectedMonth) }
-                    }
-
                 // 독서 목표 카드
                 ReadingGoalCard(vm: vm)
                     .padding(.horizontal, 16)
@@ -180,6 +221,8 @@ private struct DashboardStatsSection: View {
             }
             .padding(.top, 8)
         }
+        .contentMargins(.top, topInset, for: .scrollContent)
+        .contentMargins(.bottom, bottomInset, for: .scrollContent)
         .refreshable { await vm.refreshStats() }
         .navigationDestination(isPresented: $navigateToCalendar) {
             ReadingCalendarView(
@@ -196,33 +239,43 @@ private struct DashboardStatsSection: View {
 private struct DashboardProgressSection: View {
 
     @Bindable var vm: DashboardViewModel
+    let topInset: CGFloat
+    let bottomInset: CGFloat
+
+    private var statusPicker: some View {
+        Picker("상태", selection: $vm.selectedProgressStatus) {
+            Text("대기중").tag(BookStatus.waiting)
+            Text("읽는중").tag(BookStatus.reading)
+            Text("완독").tag(BookStatus.completed)
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // 세그먼트 필터
-            Picker("상태", selection: $vm.selectedProgressStatus) {
-                Text("대기중").tag(BookStatus.waiting)
-                Text("읽는중").tag(BookStatus.reading)
-                Text("완독").tag(BookStatus.completed)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-
-            if vm.filteredProgressBooks.isEmpty {
+        if vm.filteredProgressBooks.isEmpty {
+            VStack(spacing: 0) {
+                statusPicker
                 EmptyStateView(
                     systemImage: "book",
                     title: "책이 없습니다",
                     message: "이 상태의 책이 없습니다."
                 )
-            } else {
-                List(vm.filteredProgressBooks) { book in
-                    BookRowView(book: book, showProgress: true)
-                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                        .listRowSeparator(.hidden)
-                }
-                .listStyle(.plain)
-                .refreshable { await vm.refreshProgress() }
+            }
+            .padding(.top, topInset)
+        } else {
+            List(vm.filteredProgressBooks) { book in
+                BookRowView(book: book, showProgress: true)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowSeparator(.hidden)
+            }
+            .listStyle(.plain)
+            .contentMargins(.bottom, bottomInset, for: .scrollContent)
+            .refreshable { await vm.refreshProgress() }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                statusPicker
+                    .padding(.top, topInset)
             }
         }
     }
@@ -233,43 +286,53 @@ private struct DashboardProgressSection: View {
 private struct DashboardLibrarySection: View {
 
     @Bindable var vm: DashboardViewModel
+    let topInset: CGFloat
+    let bottomInset: CGFloat
 
-    var body: some View {
-        VStack(spacing: 0) {
-            // 검색 필드
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("제목이나 저자로 검색...", text: $vm.librarySearchQuery)
-                    .autocorrectionDisabled()
-                if !vm.librarySearchQuery.isEmpty {
-                    Button {
-                        vm.librarySearchQuery = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
+    private var searchField: some View {
+        HStack {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("제목이나 저자로 검색...", text: $vm.librarySearchQuery)
+                .autocorrectionDisabled()
+            if !vm.librarySearchQuery.isEmpty {
+                Button {
+                    vm.librarySearchQuery = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
                 }
             }
-            .padding(10)
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+        }
+        .padding(10)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
 
-            if vm.filteredLibraryBooks.isEmpty {
+    var body: some View {
+        if vm.filteredLibraryBooks.isEmpty {
+            VStack(spacing: 0) {
+                searchField
                 EmptyStateView(
                     systemImage: "books.vertical",
                     title: vm.librarySearchQuery.isEmpty ? "아직 책이 없습니다" : "검색 결과가 없습니다",
                     message: vm.librarySearchQuery.isEmpty ? "첫 책을 추가해보세요!" : "다른 검색어를 시도해보세요"
                 )
-            } else {
-                List(vm.filteredLibraryBooks) { book in
-                    BookRowView(book: book, showProgress: true)
-                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                        .listRowSeparator(.hidden)
-                }
-                .listStyle(.plain)
-                .refreshable { await vm.refreshLibrary() }
+            }
+            .padding(.top, topInset)
+        } else {
+            List(vm.filteredLibraryBooks) { book in
+                BookRowView(book: book, showProgress: true)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowSeparator(.hidden)
+            }
+            .listStyle(.plain)
+            .contentMargins(.bottom, bottomInset, for: .scrollContent)
+            .refreshable { await vm.refreshLibrary() }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                searchField
+                    .padding(.top, topInset)
             }
         }
     }
@@ -319,7 +382,7 @@ private struct ReadingGoalCard: View {
                     .tint(goal.progress >= 1 ? Color.brandGreen : Color.primary)
 
                 if goal.progress >= 1 {
-                    Text("🎉 목표 달성! 축하합니다!")
+                    Label("목표 달성! 축하합니다!", systemImage: "checkmark.seal.fill")
                         .font(.caption)
                         .foregroundStyle(Color.brandGreen)
                 }
@@ -351,8 +414,10 @@ private struct StreakCard: View {
     var body: some View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 4) {
-                    Text("🔥")
+                HStack(spacing: 6) {
+                    Image(systemName: "flame.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.systemOrange))
                     Text("독서 스트릭")
                         .font(.subheadline.weight(.semibold))
                 }
@@ -400,7 +465,7 @@ private struct RecommendationSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeaderView(title: "✨ 추천 도서", actionTitle: "새로고침") {
+            SectionHeaderView(title: "추천 도서", actionTitle: "새로고침") {
                 onRefresh()
             }
             .padding(.horizontal, 16)
@@ -510,14 +575,28 @@ struct MonthlyBarChartView: View {
         Chart(stats, id: \.month) { item in
             BarMark(
                 x: .value("월", "\(item.month)월"),
-                y: .value("완독", item.completedCount)
+                y: .value("완독", item.completedCount),
+                width: .ratio(0.55)
             )
-            .foregroundStyle(.primary)
+            .foregroundStyle(Color.primary.opacity(0.9))
             .cornerRadius(4)
+            .annotation(position: .top) {
+                if item.completedCount > 0 {
+                    Text("\(item.completedCount)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .chartYScale(domain: 0...maxY)
-        .chartYAxis {
-            AxisMarks(preset: .aligned, values: .automatic(desiredCount: 5))
+        // 값은 막대 위에 직접 표기하므로 Y축·그리드라인은 제거
+        .chartYAxis(.hidden)
+        .chartXAxis {
+            AxisMarks { _ in
+                AxisValueLabel()
+                    .font(.caption2)
+                    .foregroundStyle(Color.secondary)
+            }
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 16)
@@ -647,7 +726,9 @@ struct MiniCalendarView: View {
                                 isToday: day == todayDay
                             )
                         } else {
-                            Color.clear.frame(maxWidth: .infinity, minHeight: 36)
+                            Color.clear
+                                .frame(maxWidth: .infinity)
+                                .aspectRatio(0.75, contentMode: .fit)
                         }
                     }
                 }
@@ -672,33 +753,51 @@ private struct DayCell: View {
         Button {
             if !books.isEmpty { showCompletedDialog = true }
         } label: {
-            ZStack(alignment: .topLeading) {
-                if let firstBook = books.first {
-                    AsyncImage(url: URL(string: firstBook.coverUrl)) { phase in
-                        if case .success(let img) = phase {
-                            img.resizable().scaledToFill()
-                        } else {
-                            Color(.systemGray5)
+            // 셀 크기는 Color.clear가 결정 — 표지·뱃지·N권 라벨은 전부 셀에 직접 앵커
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .aspectRatio(0.75, contentMode: .fit)
+                .overlay {
+                    if let firstBook = books.first {
+                        AsyncImage(url: URL(string: firstBook.coverUrl)) { phase in
+                            if case .success(let img) = phase {
+                                img.resizable().scaledToFill()
+                            } else {
+                                Color(.systemGray5)
+                            }
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                    } else {
+                        Text("\(day)")
+                            .font(.system(size: 14, weight: isToday ? .bold : .regular))
+                            .foregroundStyle(isToday ? .primary : .secondary)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .overlay {
+                                if isToday {
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .stroke(.primary, lineWidth: 1.5)
+                                }
+                            }
                     }
-                    .frame(maxWidth: .infinity, minHeight: 36)
-                    .clipped()
-
-                    // 날짜 뱃지
-                    Text("\(day)")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(2)
-                        .background(Color.black.opacity(0.4), in: RoundedRectangle(cornerRadius: 2))
-                        .padding(2)
-
-                    // 하단 "N권" 라벨
-                    VStack {
-                        Spacer()
+                }
+                .overlay(alignment: .topLeading) {
+                    if !books.isEmpty {
+                        Text("\(day)")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(2)
+                            .background(Color.black.opacity(0.4), in: RoundedRectangle(cornerRadius: 2))
+                            .padding(2)
+                    }
+                }
+                .overlay(alignment: .bottom) {
+                    if !books.isEmpty {
                         Text("\(books.count)권")
                             .font(.system(size: 9, weight: .medium))
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
+                            .padding(.vertical, 2)
                             .background(
                                 LinearGradient(
                                     colors: [.clear, .black.opacity(0.6)],
@@ -707,21 +806,8 @@ private struct DayCell: View {
                                 )
                             )
                     }
-                } else {
-                    Text("\(day)")
-                        .font(.system(size: 12, weight: isToday ? .bold : .regular))
-                        .foregroundStyle(isToday ? .primary : .secondary)
-                        .frame(maxWidth: .infinity, minHeight: 36)
-                        .overlay {
-                            if isToday {
-                                RoundedRectangle(cornerRadius: 4)
-                                    .stroke(.primary, lineWidth: 1.5)
-                            }
-                        }
                 }
-            }
-            .frame(maxWidth: .infinity, minHeight: 36)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showCompletedDialog) {
