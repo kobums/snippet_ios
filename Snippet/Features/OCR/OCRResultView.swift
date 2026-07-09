@@ -144,6 +144,7 @@ struct OCRResultView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .foregroundStyle(Color.onAccent)
                 .disabled(recognizedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             .padding(16)

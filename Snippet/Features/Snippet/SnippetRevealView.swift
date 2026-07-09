@@ -55,7 +55,7 @@ struct SnippetRevealView: View {
                     // 제목 + 저자 (페이드인)
                     VStack(spacing: 6) {
                         Text(item.bookTitle)
-                            .font(.title3.weight(.semibold))
+                            .font(.serifTitle)
                             .multilineTextAlignment(.center)
                             .lineLimit(3)
 
@@ -75,7 +75,7 @@ struct SnippetRevealView: View {
                         Link(destination: url) {
                             Label("이 책 구매하기", systemImage: "cart.fill")
                                 .font(.headline)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.onAccent)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
                                 .background(Color.accentColor, in: Capsule())

@@ -85,7 +85,7 @@ private struct ShareCardSheetView: View {
                 } label: {
                     Label("이미지로 공유", systemImage: "square.and.arrow.up")
                         .font(.body.weight(.medium))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.onAccent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 14))

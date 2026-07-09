@@ -8,15 +8,20 @@ import Charts
 struct StatsDetailView: View {
 
     @Bindable var vm: DashboardViewModel
-    @State private var selectedSubTab: SubTab = .monthly
+    @State private var selectedSubTab: SubTab = .period
+    @Environment(\.dismiss) private var dismiss
+
+    private var yearOptions: [Int] {
+        let current = Calendar.current.component(.year, from: .now)
+        return Array((current - 9...current).reversed())
+    }
 
     enum SubTab: Int, CaseIterable {
-        case monthly, yearly, category, insights
+        case period, category, insights
 
         var title: String {
             switch self {
-            case .monthly:  "월별"
-            case .yearly:   "연도별"
+            case .period:   "기간별"
             case .category: "카테고리"
             case .insights: "인사이트"
             }
@@ -24,74 +29,111 @@ struct StatsDetailView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // 연도 네비게이터
-            YearNavigatorView(year: $vm.selectedYear)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color(.systemBackground))
-                .onChange(of: vm.selectedYear) { _, _ in
-                    Task { await vm.refreshStats() }
+        GeometryReader { proxy in
+            let topInset = proxy.safeAreaInsets.top + 64
+            let bottomInset = proxy.safeAreaInsets.bottom + 8
+
+            ZStack(alignment: .top) {
+                ZStack {
+                    PeriodStatsTab(monthly: vm.monthlyStats, yearly: vm.yearlyStats)
+                        .opacity(selectedSubTab == .period ? 1 : 0)
+                        .allowsHitTesting(selectedSubTab == .period)
+                    CategoryStatsTab(stats: vm.categoryStats)
+                        .opacity(selectedSubTab == .category ? 1 : 0)
+                        .allowsHitTesting(selectedSubTab == .category)
+                    InsightsTab(insights: vm.insights)
+                        .opacity(selectedSubTab == .insights ? 1 : 0)
+                        .allowsHitTesting(selectedSubTab == .insights)
                 }
+                .animation(.easeInOut(duration: 0.2), value: selectedSubTab)
+                .contentMargins(.top, topInset, for: .scrollContent)
+                .contentMargins(.bottom, bottomInset, for: .scrollContent)
+                .ignoresSafeArea(edges: [.top, .bottom])
 
-            Divider()
-
-            // 서브탭
-            Picker("탭", selection: $selectedSubTab) {
-                ForEach(SubTab.allCases, id: \.self) { tab in
-                    Text(tab.title).tag(tab)
-                }
+                floatingBar
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-
-            TabView(selection: $selectedSubTab) {
-                MonthlyStatsTab(stats: vm.monthlyStats)
-                    .tag(SubTab.monthly)
-                YearlyStatsTab(stats: vm.yearlyStats)
-                    .tag(SubTab.yearly)
-                CategoryStatsTab(stats: vm.categoryStats)
-                    .tag(SubTab.category)
-                InsightsTab(insights: vm.insights)
-                    .tag(SubTab.insights)
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .animation(.easeInOut(duration: 0.2), value: selectedSubTab)
         }
-        .navigationTitle("통계")
-        .navigationBarTitleDisplayMode(.inline)
-        .refreshable { await vm.refreshStats() }
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
+        .onChange(of: vm.selectedYear) { _, _ in
+            Task { await vm.refreshStats() }
+        }
+    }
+
+    // MARK: - 플로팅 바 — [뒤로가기] [상단탭] [년도] 한 줄
+
+    private var floatingBar: some View {
+        HStack(spacing: 10) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+
+            FloatingSubTabBar(
+                tabs: SubTab.allCases.map { ($0, $0.title) },
+                selection: $selectedSubTab,
+                compact: true
+            )
+
+            // 년도 선택 — 시스템 메뉴 피커
+            Menu {
+                Picker("연도", selection: $vm.selectedYear) {
+                    ForEach(yearOptions, id: \.self) { year in
+                        Text("\(String(year))년").tag(year)
+                    }
+                }
+            } label: {
+                Text("\(String(vm.selectedYear))년")
+                    .font(.subheadline.weight(.medium))
+                    .padding(.vertical, 6)
+            }
+            .buttonStyle(.glass)
+        }
+        .padding(.top, 4)
+        .padding(.horizontal, 12)
     }
 }
 
-// MARK: - 월별 탭
+// MARK: - 기간별 탭 (월별 + 연도별 통합)
 
-private struct MonthlyStatsTab: View {
+private struct PeriodStatsTab: View {
 
-    let stats: [MonthlyStatsDto]
+    let monthly: [MonthlyStatsDto]
+    let yearly: [YearlyStatsDto]
 
     private var maxY: Double {
-        let m = stats.map { Double($0.completedCount) }.max() ?? 0
+        let m = monthly.map { Double($0.completedCount) }.max() ?? 0
         return max(m * 1.2, 1)
     }
+
+    private var totalCompleted: Int { yearly.reduce(0) { $0 + $1.completedCount } }
+    private var totalPages: Int { yearly.reduce(0) { $0 + $1.totalPages } }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                if stats.isEmpty {
+                if monthly.isEmpty && yearly.isEmpty {
                     EmptyStateView(systemImage: "chart.bar", title: "데이터가 없습니다")
                         .padding(.top, 60)
-                } else {
+                }
+
+                // ── 월별 ──
+                if !monthly.isEmpty {
                     // 막대 차트
                     VStack(alignment: .leading, spacing: 8) {
                         SectionHeaderView(title: "월별 완독 권수")
-                        Chart(stats, id: \.month) { item in
+                        Chart(monthly, id: \.month) { item in
                             BarMark(
                                 x: .value("월", "\(item.month)월"),
-                                y: .value("완독", item.completedCount)
+                                y: .value("완독", item.completedCount),
+                                width: .ratio(0.55)
                             )
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Color.primary.opacity(0.9))
                             .cornerRadius(4)
                             .annotation(position: .top) {
                                 if item.completedCount > 0 {
@@ -102,6 +144,15 @@ private struct MonthlyStatsTab: View {
                             }
                         }
                         .chartYScale(domain: 0...maxY)
+                        // 값은 막대 위에 직접 표기하므로 Y축·그리드라인은 제거
+                        .chartYAxis(.hidden)
+                        .chartXAxis {
+                            AxisMarks { _ in
+                                AxisValueLabel()
+                                    .font(.caption2)
+                                    .foregroundStyle(Color.secondary)
+                            }
+                        }
                         .frame(height: 220)
                     }
                     .padding(16)
@@ -110,7 +161,7 @@ private struct MonthlyStatsTab: View {
 
                     // 월별 카드 목록
                     VStack(spacing: 8) {
-                        ForEach(stats.filter { $0.completedCount > 0 }, id: \.month) { item in
+                        ForEach(monthly.filter { $0.completedCount > 0 }, id: \.month) { item in
                             HStack {
                                 Text("\(item.month)월")
                                     .font(.subheadline.weight(.medium))
@@ -129,76 +180,62 @@ private struct MonthlyStatsTab: View {
                         }
                     }
                 }
-                Spacer(minLength: 24)
-            }
-            .padding(.top, 16)
-        }
-    }
-}
 
-// MARK: - 연도별 탭
+                // ── 연도별 ──
+                if !yearly.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        SectionHeaderView(title: "연도별")
+                            .padding(.horizontal, 16)
 
-private struct YearlyStatsTab: View {
-
-    let stats: [YearlyStatsDto]
-
-    private var totalCompleted: Int { stats.reduce(0) { $0 + $1.completedCount } }
-    private var totalPages: Int { stats.reduce(0) { $0 + $1.totalPages } }
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                if stats.isEmpty {
-                    EmptyStateView(systemImage: "chart.bar", title: "데이터가 없습니다")
-                        .padding(.top, 60)
-                } else {
-                    // 전체 통계 카드
-                    HStack {
-                        VStack(spacing: 4) {
-                            Text("\(totalCompleted)권")
-                                .font(.statValue)
-                            Text("총 완독")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-
-                        Divider().frame(height: 50)
-
-                        VStack(spacing: 4) {
-                            Text("\(totalPages)쪽")
-                                .font(.statValue)
-                            Text("총 페이지")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .padding(16)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-                    .padding(.horizontal, 16)
-
-                    // 연도별 행
-                    VStack(spacing: 8) {
-                        ForEach(stats, id: \.year) { item in
-                            HStack {
-                                Text("\(String(item.year))년")
-                                    .font(.subheadline.weight(.medium))
-                                Spacer()
-                                Text("\(item.completedCount)권 / \(item.totalPages)쪽")
-                                    .font(.subheadline)
+                        // 전체 통계 카드
+                        HStack {
+                            VStack(spacing: 4) {
+                                Text("\(totalCompleted)권")
+                                    .font(.statValue)
+                                Text("총 완독")
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
-                            .padding(14)
-                            .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color(.separator), lineWidth: 0.5)
-                            )
-                            .padding(.horizontal, 16)
+                            .frame(maxWidth: .infinity)
+
+                            Divider().frame(height: 50)
+
+                            VStack(spacing: 4) {
+                                Text("\(totalPages)쪽")
+                                    .font(.statValue)
+                                Text("총 페이지")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .padding(16)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+                        .padding(.horizontal, 16)
+
+                        // 연도별 행
+                        VStack(spacing: 8) {
+                            ForEach(yearly, id: \.year) { item in
+                                HStack {
+                                    Text("\(String(item.year))년")
+                                        .font(.subheadline.weight(.medium))
+                                    Spacer()
+                                    Text("\(item.completedCount)권 / \(item.totalPages)쪽")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(14)
+                                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color(.separator), lineWidth: 0.5)
+                                )
+                                .padding(.horizontal, 16)
+                            }
                         }
                     }
                 }
+
                 Spacer(minLength: 24)
             }
             .padding(.top, 16)

@@ -20,10 +20,22 @@ struct SuggestionView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
 
-                    // 안내문
-                    Text("Snippet을 더 좋게 만들 수 있는 아이디어를 알려주세요.\n버그 신고, 기능 추가 제안 모두 환영합니다!")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    // 안내 카드
+                    HStack(spacing: 14) {
+                        Image(systemName: "lightbulb.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(Color.accentText)
+                            .frame(width: 48, height: 48)
+                            .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+
+                        Text("Snippet을 더 좋게 만들 아이디어를 알려주세요.\n버그 신고, 기능 제안 모두 환영해요!")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
 
                     // 카테고리 선택 — ChoiceChip
                     VStack(alignment: .leading, spacing: 10) {
@@ -45,7 +57,7 @@ struct SuggestionView: View {
                                                 : Color(.secondarySystemFill)
                                         )
                                         .foregroundStyle(
-                                            selectedCategory == cat ? .white : .primary
+                                            selectedCategory == cat ? Color.onAccent : .primary
                                         )
                                         .clipShape(Capsule())
                                 }
@@ -56,11 +68,18 @@ struct SuggestionView: View {
                     }
 
                     // 제목 (선택)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("제목 (선택)")
-                            .font(.subheadline.weight(.semibold))
-                        TextField("제목을 입력하세요 (최대 200자)", text: $title)
-                            .textFieldStyle(.roundedBorder)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Text("제목")
+                                .font(.subheadline.weight(.semibold))
+                            Text("선택")
+                                .font(.caption)
+                                .foregroundStyle(Color(.tertiaryLabel))
+                        }
+                        TextField("한 줄로 요약해주세요", text: $title)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
                             .onChange(of: title) { _, new in
                                 if new.count > 200 {
                                     title = String(new.prefix(200))
@@ -69,17 +88,23 @@ struct SuggestionView: View {
                     }
 
                     // 내용 (필수)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("내용")
-                            .font(.subheadline.weight(.semibold))
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("내용")
+                                .font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Text("\(content.count)자")
+                                .font(.caption)
+                                .foregroundStyle(Color(.tertiaryLabel))
+                        }
                         TextEditor(text: $content)
-                            .frame(minHeight: 160)
-                            .padding(6)
-                            .background(Color(.secondarySystemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .frame(minHeight: 180)
+                            .padding(10)
+                            .scrollContentBackground(.hidden)
+                            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(contentError != nil ? Color.red : Color(.separator), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(contentError != nil ? Color.red : Color.clear, lineWidth: 1)
                             )
                         if let err = contentError {
                             Text(err)
@@ -99,21 +124,22 @@ struct SuggestionView: View {
                     Button {
                         Task { await submit() }
                     } label: {
-                        HStack {
-                            Spacer()
+                        HStack(spacing: 8) {
                             if isLoading {
                                 ProgressView()
-                                    .tint(.white)
+                                    .tint(Color.onAccent)
                             } else {
-                                Text("제출하기")
+                                Image(systemName: "paperplane.fill")
+                                    .font(.subheadline)
+                                Text("제안 보내기")
                                     .font(.headline)
                             }
-                            Spacer()
                         }
-                        .frame(height: 50)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
                         .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .foregroundStyle(Color.onAccent)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
                     .disabled(isLoading)
                 }
@@ -121,11 +147,6 @@ struct SuggestionView: View {
             }
             .navigationTitle("기능 제안하기")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("닫기") { dismiss() }
-                }
-            }
         }
     }
 

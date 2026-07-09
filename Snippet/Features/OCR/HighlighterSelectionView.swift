@@ -60,17 +60,17 @@ struct HighlighterSelectionView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Image(systemName: "info.circle")
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.accentText)
                 Text("손가락으로 텍스트에 밑줄을 그어주세요")
                     .font(.subheadline)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.accentText)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text("• 자동으로 수평선으로 변환됩니다")
                 Text("• 밑줄을 탭하면 선택·삭제할 수 있습니다")
             }
             .font(.caption)
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(Color.accentText)
             .padding(.leading, 28)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -124,6 +124,7 @@ struct HighlighterSelectionView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .foregroundStyle(Color.onAccent)
                 .disabled(underlines.isEmpty)
             }
         }

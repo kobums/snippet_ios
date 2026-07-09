@@ -47,58 +47,55 @@ struct SnippetSwipeView: View {
                     }
                 }
                 .padding(.horizontal, 24)
-                .padding(.bottom, 48)
+                .padding(.bottom, 20)
             }
 
-            // 하단 힌트
-            HStack {
-                Text("← Pass")
-                    .font(.caption)
-                    .foregroundStyle(Color(.tertiaryLabel))
-                Spacer()
-                Text("Like →")
-                    .font(.caption)
-                    .foregroundStyle(Color(.tertiaryLabel))
-            }
-            .padding(.horizontal, 36)
-            .padding(.bottom, 16)
-
-            // 하단 버튼
+            // 하단 컨트롤 — Pass 힌트 · X · 하트 · Like 힌트 한 줄
             if let topCard = vm.cards.first {
-                bottomButtons(card: topCard)
-                    .padding(.horizontal, 60)
-                    .padding(.bottom, 16)
+                bottomControls(card: topCard)
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 12)
             }
         }
     }
 
-    private func bottomButtons(card: SnippetCard) -> some View {
-        HStack(spacing: 32) {
-            Button {
-                Haptics.medium()
-                Task { await vm.handleSwipe(card: card, isLike: false) }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(Color(.systemRed))
-                    .frame(width: 56, height: 56)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(Circle())
-                    .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
+    private func bottomControls(card: SnippetCard) -> some View {
+        HStack {
+            Text("← Pass")
+                .font(.caption)
+                .foregroundStyle(Color(.tertiaryLabel))
+
+            Spacer()
+
+            HStack(spacing: 24) {
+                Button {
+                    Haptics.medium()
+                    Task { await vm.handleSwipe(card: card, isLike: false) }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(Color(.systemRed))
+                        .frame(width: 56, height: 56)
+                }
+                .glassEffect(.regular.interactive(), in: Circle())
+
+                Button {
+                    Haptics.success()
+                    Task { await vm.handleSwipe(card: card, isLike: true) }
+                } label: {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .frame(width: 56, height: 56)
+                }
+                .glassEffect(.regular.interactive(), in: Circle())
             }
 
-            Button {
-                Haptics.success()
-                Task { await vm.handleSwipe(card: card, isLike: true) }
-            } label: {
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(.white)
-                    .frame(width: 56, height: 56)
-                    .background(Color.accentColor)
-                    .clipShape(Circle())
-                    .shadow(color: .accentColor.opacity(0.3), radius: 6, x: 0, y: 2)
-            }
+            Spacer()
+
+            Text("Like →")
+                .font(.caption)
+                .foregroundStyle(Color(.tertiaryLabel))
         }
     }
 
@@ -106,8 +103,9 @@ struct SnippetSwipeView: View {
 
     private var dailyLimitEmpty: some View {
         VStack(spacing: 16) {
-            Text("🌙")
-                .font(.system(size: 52))
+            Image(systemName: "moon.stars.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
             Text("오늘의 스니펫을 모두 읽었어요")
                 .font(.title3.weight(.semibold))
                 .multilineTextAlignment(.center)
@@ -183,15 +181,16 @@ private struct SwipeCardView: View {
                     .clipShape(Capsule())
             }
 
-            // 인용문
-            ScrollView {
-                Text("\"\(card.text)\"")
-                    .quoteStyle()
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 180)
+            // 인용문 — 카드의 남는 높이를 전부 사용, 짧은 문장은 세로 중앙 정렬
+            GeometryReader { inner in
+                ScrollView {
+                    Text("\"\(card.text)\"")
+                        .quoteStyle()
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: inner.size.height)
+                }
             }
-            .frame(maxHeight: 260)
 
             // 책 제목 (저자 비공개)
             if let bookTitle = card.bookTitle, !bookTitle.isEmpty {

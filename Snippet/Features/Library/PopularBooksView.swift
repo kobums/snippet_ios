@@ -272,7 +272,7 @@ private struct FilterChip: View {
                     isSelected ? Color.accentColor : Color(.secondarySystemBackground),
                     in: Capsule()
                 )
-                .foregroundStyle(isSelected ? .white : .primary)
+                .foregroundStyle(isSelected ? Color.onAccent : .primary)
         }
         .buttonStyle(.plain)
     }
@@ -293,7 +293,7 @@ private struct PopularBookRow: View {
                     .frame(width: 28, height: 28)
                 Text("\(book.rank)")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(book.rank <= 3 ? .white : .secondary)
+                    .foregroundStyle(book.rank <= 3 ? Color.onAccent : .secondary)
             }
 
             BookCoverView(urlString: book.coverUrl, size: .large)
@@ -316,7 +316,7 @@ private struct PopularBookRow: View {
                 if book.loanCount > 0 {
                     Text("대출 \(book.loanCount)회")
                         .font(.caption2.weight(.medium))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Color.accentText)
                 }
             }
 
@@ -327,7 +327,7 @@ private struct PopularBookRow: View {
             } label: {
                 Image(systemName: "plus.circle")
                     .font(.title3)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.accentText)
             }
             .buttonStyle(.plain)
         }
@@ -434,6 +434,7 @@ private struct AddPopularBookSheet: View {
                             .padding(.vertical, 14)
                     }
                     .buttonStyle(.borderedProminent)
+                    .foregroundStyle(Color.onAccent)
                 }
                 .padding()
             }

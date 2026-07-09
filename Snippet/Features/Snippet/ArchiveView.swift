@@ -82,9 +82,8 @@ private struct ArchiveCardView: View {
 
             // 인용문
             Text("\"\(item.text)\"")
-                .font(.body)
+                .font(.quoteBody)
                 .lineSpacing(6)
-                .fontWeight(.light)
                 .lineLimit(isExpanded ? nil : 5)
                 .multilineTextAlignment(.leading)
 
@@ -129,7 +128,7 @@ private struct ArchiveCardView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(item.bookTitle)
-                        .font(.headline)
+                        .font(.serifHeadline)
                         .lineLimit(3)
                     Text(item.bookAuthor)
                         .font(.subheadline)
@@ -141,7 +140,7 @@ private struct ArchiveCardView: View {
                         Link(destination: url) {
                             Text("이 책 구매하기")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.onAccent)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
                                 .background(Color.accentColor, in: Capsule())

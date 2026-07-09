@@ -36,7 +36,7 @@ enum LocalNotifications {
         center.removePendingNotificationRequests(withIdentifiers: [readingNotificationID])
 
         let content = UNMutableNotificationContent()
-        content.title = "📚 독서 중"
+        content.title = "독서 중"
         content.body  = "\(bookTitle) — \(formattedElapsed(elapsedSeconds)) 경과"
         content.sound = .none
 

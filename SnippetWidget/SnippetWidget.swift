@@ -52,7 +52,7 @@ struct SnippetWidgetEntryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(entry.text)
-                .font(.system(size: 16, weight: .medium))
+                .font(.system(size: 16, weight: .medium, design: .serif))
                 .foregroundStyle(.primary)
                 .lineLimit(4)
                 .minimumScaleFactor(0.8)

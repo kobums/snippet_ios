@@ -189,7 +189,7 @@ struct LoginView: View {
             Group {
                 if isLoading {
                     ProgressView()
-                        .tint(.white)
+                        .tint(Color.onAccent)
                 } else {
                     Text("Login")
                         .fontWeight(.semibold)
@@ -199,6 +199,7 @@ struct LoginView: View {
             .frame(height: 28)
         }
         .buttonStyle(.borderedProminent)
+        .foregroundStyle(Color.onAccent)
         .controlSize(.large)
         .disabled(isLoading)
     }
