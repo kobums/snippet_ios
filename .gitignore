@@ -25,3 +25,9 @@ GoogleService-Info.plist
 secrets.json
 Secrets.xcconfig
 Secrets.swift
+
+# --- Fastlane ---
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/test_output
+fastlane/README.md

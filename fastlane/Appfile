@@ -1,0 +1,5 @@
+app_identifier("com.gowoobro.snippet")
+apple_id("kobums23@gmail.com")
+
+itc_team_id("")   # App Store Connect Team ID (하나뿐이면 비워도 됨)
+team_id("")       # Developer Portal Team ID (하나뿐이면 비워도 됨)
