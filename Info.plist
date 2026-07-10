@@ -30,6 +30,10 @@
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
+	<!-- 세로 전용 앱 — iPad 멀티태스킹(Split View/Slide Over) opt-out.
+	     이로써 iPad에서도 세로 전용을 유지하면서 4방향 지원 요구(90474)를 면제받음. -->
+	<key>UIRequiresFullScreen</key>
+	<true/>
 	<!-- 개발용 로컬 서버(http://10.0.1.14:8008) 통신 허용. 스토어 제출 전 도메인 예외로 좁힐 것. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
