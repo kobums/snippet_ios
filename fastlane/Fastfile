@@ -7,9 +7,19 @@ default_platform(:ios)
 #   CURRENT_PROJECT_VERSION → CFBundleVersion (빌드 번호)
 # ---------------------------------------------------------
 
-XCODEPROJ = "Snippet.xcodeproj"
-SCHEME    = "Snippet"
-IPA_PATH  = File.expand_path("../build/Snippet.ipa", __dir__)
+XCODEPROJ      = "Snippet.xcodeproj"
+SCHEME         = "Snippet"
+IPA_PATH       = File.expand_path("../build/Snippet.ipa", __dir__)
+APP_IDENTIFIER = "com.gowoobro.snippet"
+
+# 새 버전이 이 상태들 중 하나면 App Store Connect에서 아직 편집 가능(=재사용 가능)한 것으로 본다.
+# 이 외(READY_FOR_SALE 등 출시 완료)는 "닫힌" 버전으로 보고 patch를 더 올린다.
+EDITABLE_APP_STORE_STATES = %w[
+  PREPARE_FOR_SUBMISSION DEVELOPER_REJECTED REJECTED METADATA_REJECTED
+  INVALID_BINARY WAITING_FOR_REVIEW READY_FOR_REVIEW IN_REVIEW
+  WAITING_FOR_EXPORT_COMPLIANCE PENDING_DEVELOPER_RELEASE
+  PENDING_CONTRACT PROCESSING_FOR_APP_STORE
+].freeze
 
 # App Store Connect API Key 인증 (비밀번호 입력 없이 자동화)
 # .p8 키 경로/ID는 환경변수로 주입 — 키 파일은 커밋 금지(*.p8 gitignore)
@@ -48,6 +58,60 @@ def bump_patch(version)
   parts << 0 while parts.size < 3
   parts[2] += 1
   parts.take(3).join(".")
+end
+
+def auth_error?(message)
+  message.to_s.match?(/Authentication credentials|invalid.*token|unauthorized|NOT_AUTHORIZED/i)
+end
+
+# 새 버전이 App Store에서 이미 닫힌(출시완료 등) 상태면 patch를 계속 올려 충돌을 피한다.
+def ensure_available_version(start_version)
+  app = begin
+    Spaceship::ConnectAPI::App.find(APP_IDENTIFIER)
+  rescue StandardError => e
+    UI.important("App Store 버전 상태 조회 실패 — 확인 없이 그대로 진행합니다: #{e.message}")
+    return start_version
+  end
+
+  version = start_version
+  60.times do
+    records = app.get_app_store_versions(filter: { platform: "IOS" })
+                 .select { |v| v.version_string == version }
+    return version if records.empty? || records.any? { |v| EDITABLE_APP_STORE_STATES.include?(v.app_store_state) }
+    version = bump_patch(version)
+  end
+  UI.user_error!("사용 가능한 버전을 찾지 못했습니다 (#{start_version} 이후 60개 patch가 모두 닫힘). 수동으로 minor 버전을 올려주세요.")
+end
+
+# TestFlight/App Store에 이미 등록된 최신 빌드 번호를 조회해, 로컬 pbxproj 값이 뒤처져 있어도
+# "빌드 번호 중복" 에러 없이 안전하게 다음 빌드 번호를 산정한다.
+def latest_known_build_number(key, version)
+  candidates = [current_build_number]
+
+  begin
+    candidates << latest_testflight_build_number(
+      api_key: key,
+      version: version,
+      app_identifier: APP_IDENTIFIER
+    ).to_i
+  rescue StandardError => e
+    UI.user_error!("App Store Connect 인증 실패 — fastlane/.env 의 ASC_KEY_ID/ASC_ISSUER_ID/ASC_KEY_PATH 를 확인하세요.\n#{e.message}") if auth_error?(e.message)
+    UI.important("TestFlight 빌드 번호 조회 실패(첫 업로드일 수 있음): #{e.message}")
+  end
+
+  begin
+    candidates << app_store_build_number(
+      api_key: key,
+      live: false,
+      version: version,
+      app_identifier: APP_IDENTIFIER
+    ).to_i
+  rescue StandardError => e
+    UI.user_error!("App Store Connect 인증 실패 — fastlane/.env 의 ASC_KEY_ID/ASC_ISSUER_ID/ASC_KEY_PATH 를 확인하세요.\n#{e.message}") if auth_error?(e.message)
+    UI.important("App Store 빌드 번호 조회 실패: #{e.message}")
+  end
+
+  candidates.max
 end
 
 # Release 컨피그로 아카이브 → app-store 방식으로 IPA export.
@@ -218,40 +282,74 @@ platform :ios do
   end
 
   # -------------------------------------------------------
-  # patch 버전 bump 후 App Store 업로드 (심사 제출은 수동)
+  # patch 버전 bump 후 App Store 심사 제출까지 자동 진행
   # 사용법: cd snippet_ios && fastlane release
   # -------------------------------------------------------
-  desc "patch 버전 bump 후 App Store 업로드"
+  desc "patch 버전 bump 후 App Store 심사 제출까지 자동 진행"
   lane :release do
-    new_version = bump_patch(current_marketing_version)
-    new_build   = current_build_number + 1
+    key         = api_key
+    new_version = ensure_available_version(bump_patch(current_marketing_version))
+    new_build   = latest_known_build_number(key, new_version) + 1
 
     # 노트 생성이 실패해도 pbxproj 버전이 bump된 채 남지 않도록 bump보다 먼저 실행
     meta_path = sync_release_notes(new_version)
+    notes = File.read(File.expand_path("changelogs/#{new_version}.txt", __dir__)).strip
 
     set_versions(marketing: new_version, build: new_build)
     puts "📦 버전: #{new_version} (#{new_build})"
     build_ipa
 
-    upload_to_app_store(
-      api_key: api_key,
+    # 1) 바이너리 업로드 + App Store Connect 처리(Processing) 완료까지 대기.
+    #    처리 전에는 빌드를 버전에 연결할 수 없어 심사 제출이 실패하므로 반드시 대기한다.
+    #    외부 테스터 배포/알림 없이 업로드만 하고, changelog는 TestFlight "테스트할 내용"에 기록.
+    upload_to_testflight(
+      api_key: key,
       ipa: IPA_PATH,
+      changelog: notes,
+      distribute_external: false,
+      skip_submission: true,
+      skip_waiting_for_build_processing: false
+    )
+
+    # 2) 처리된 빌드에 릴리즈 노트(metadata)를 붙여 심사 제출. 바이너리는 재업로드하지 않음.
+    upload_to_app_store(
+      api_key: key,
+      skip_binary_upload: true,
       app_version: new_version,
       metadata_path: meta_path,
       skip_screenshots: true,
       skip_metadata: false,
       run_precheck_before_submit: false,
-      submit_for_review: false,  # true로 바꾸면 자동 심사 제출
-      force: true                # HTML 프리뷰 확인 생략 (non-interactive 환경)
+      submit_for_review: true,
+      reject_if_possible: true,   # 심사 대기/거부 상태의 빌드가 있으면 취소하고 새 빌드로 재제출
+      automatic_release: true,    # 승인되면 자동 출시
+      force: true,                # HTML 프리뷰 확인 생략 (non-interactive 환경)
+      submission_information: {
+        export_compliance_uses_encryption: false, # 표준 HTTPS 외 자체 암호화 미사용 가정. 실제와 다르면 수정할 것
+        add_id_info_uses_idfa: false               # 광고 추적(IDFA) 미사용 가정. 실제와 다르면 수정할 것
+      }
     )
-    # 다음 릴리즈 노트 자동 생성의 커밋 범위 기준이 되는 태그
+
+    # 버전/릴리즈노트 변경사항 커밋 + 다음 릴리즈 노트 자동 생성의 커밋 범위 기준이 되는 태그
+    release_paths = [
+      pbxproj_path,
+      File.expand_path("changelogs/#{new_version}.txt", __dir__),
+      File.expand_path("metadata/ko/release_notes.txt", __dir__)
+    ]
+    if system("git", "-C", project_root, "add", *release_paths) &&
+       system("git", "-C", project_root, "commit", "-m", "chore(release): v#{new_version} (#{new_build})")
+      puts "📝 버전/릴리즈노트 변경사항 git commit 완료"
+    else
+      UI.important("git commit 실패 — 수동으로 버전/릴리즈노트 변경사항을 커밋해주세요.")
+    end
+
     if system("git", "-C", project_root, "tag", "v#{new_version}")
       puts "🏷️  git tag v#{new_version} 생성 (다음 릴리즈 노트 범위 기준)"
     else
       UI.important("git tag v#{new_version} 생성 실패 — 수동으로 태그를 만들어주세요.")
     end
 
-    puts "✅ v#{new_version} (#{new_build}) App Store 업로드 완료! App Store Connect에서 심사 제출하세요."
+    puts "✅ v#{new_version} (#{new_build}) App Store 심사 제출 완료!"
   end
 
   # -------------------------------------------------------
