@@ -122,6 +122,8 @@ private struct DashboardStatsSection: View {
     @State private var goalInput = ""
     @State private var navigateToCalendar = false
     @State private var navigateToStats = false
+    // 완독한 책 탭 → BookDetailView 이동용 (BookDetailView가 LibraryViewModel을 요구)
+    @State private var libraryVM = LibraryViewModel()
 
     var body: some View {
         ScrollView {
@@ -211,8 +213,13 @@ private struct DashboardStatsSection: View {
                         SectionHeaderView(title: "완독한 책 (\(vm.completedBooksThisMonth.count))")
                             .padding(.horizontal, 16)
                         ForEach(vm.completedBooksThisMonth) { book in
-                            BookRowView(book: book)
-                                .padding(.horizontal, 16)
+                            NavigationLink {
+                                BookDetailView(userBook: book, viewModel: libraryVM)
+                            } label: {
+                                BookRowView(book: book)
+                                    .padding(.horizontal, 16)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -241,6 +248,8 @@ private struct DashboardProgressSection: View {
     @Bindable var vm: DashboardViewModel
     let topInset: CGFloat
     let bottomInset: CGFloat
+    // 책 행 → BookDetailView 이동용
+    @State private var libraryVM = LibraryViewModel()
 
     private var statusPicker: some View {
         Picker("상태", selection: $vm.selectedProgressStatus) {
@@ -266,9 +275,14 @@ private struct DashboardProgressSection: View {
             .padding(.top, topInset)
         } else {
             List(vm.filteredProgressBooks) { book in
-                BookRowView(book: book, showProgress: true)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                    .listRowSeparator(.hidden)
+                NavigationLink {
+                    BookDetailView(userBook: book, viewModel: libraryVM)
+                } label: {
+                    BookRowView(book: book, showProgress: true)
+                }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .listRowSeparator(.hidden)
             }
             .listStyle(.plain)
             .contentMargins(.bottom, bottomInset, for: .scrollContent)
@@ -288,6 +302,8 @@ private struct DashboardLibrarySection: View {
     @Bindable var vm: DashboardViewModel
     let topInset: CGFloat
     let bottomInset: CGFloat
+    // 책 행 → BookDetailView 이동용
+    @State private var libraryVM = LibraryViewModel()
 
     private var searchField: some View {
         HStack {
@@ -323,9 +339,14 @@ private struct DashboardLibrarySection: View {
             .padding(.top, topInset)
         } else {
             List(vm.filteredLibraryBooks) { book in
-                BookRowView(book: book, showProgress: true)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                    .listRowSeparator(.hidden)
+                NavigationLink {
+                    BookDetailView(userBook: book, viewModel: libraryVM)
+                } label: {
+                    BookRowView(book: book, showProgress: true)
+                }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .listRowSeparator(.hidden)
             }
             .listStyle(.plain)
             .contentMargins(.bottom, bottomInset, for: .scrollContent)
