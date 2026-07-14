@@ -54,12 +54,14 @@ struct ShareCardView: View {
         }
     }
 
+    // gradient 배경은 accentColor(라이트=검정, 다크=흰색)이므로
+    // 그 위 텍스트는 반전색인 onAccent를 사용해야 읽힌다.
     private var primaryTextColor: Color {
-        usesImageBackground ? .white : Color.primary
+        usesImageBackground ? .white : Color.onAccent
     }
 
     private var secondaryTextColor: Color {
-        usesImageBackground ? .white.opacity(0.75) : Color.secondary
+        usesImageBackground ? .white.opacity(0.75) : Color.onAccent.opacity(0.75)
     }
 
     var body: some View {
