@@ -31,12 +31,12 @@ extension Color {
     /// 보라 포인트 액센트 (#B794F4).
     static let accentPurple = Color(snippetHex: 0xB794F4)
 
-    /// 텍스트/아이콘용 브랜드 액센트 — 라이트 남색(#1A1A2E), 다크 흰색.
+    /// 텍스트/아이콘용 브랜드 액센트 — 라이트 검정(#1A1A1A), 다크 흰색.
     /// AccentColor 에셋과 동일한 모노크롬 정책. 다크 배경 위 글자·아이콘에 사용.
     static let accentText = Color(UIColor { traits in
         traits.userInterfaceStyle == .dark
             ? UIColor.white
-            : UIColor(red: 0.102, green: 0.102, blue: 0.180, alpha: 1.0)
+            : UIColor(red: 0.102, green: 0.102, blue: 0.102, alpha: 1.0)
     })
 
     /// accent 배경 위 콘텐츠 색 — 라이트: 흰색(남색 배경 위), 다크: 검정(흰색 배경 위).
@@ -45,8 +45,8 @@ extension Color {
         traits.userInterfaceStyle == .dark ? UIColor.black : UIColor.white
     })
 
-    /// 브랜드 남색 고정색(#1A1A2E) — 모드와 무관하게 어두워야 하는 배경(독서 타이머 등).
-    static let brandNavy = Color(snippetHex: 0x1A1A2E)
+    /// 브랜드 다크 고정색(#1A1A1A) — 모드와 무관하게 어두워야 하는 배경(독서 타이머 등).
+    static let brandDark = Color(snippetHex: 0x1A1A1A)
 
     // MARK: 차트 컬러 (카테고리 분포 등 — Swift Charts에 사용)
 

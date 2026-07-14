@@ -27,7 +27,7 @@ struct ReadingTimerView: View {
     var body: some View {
         ZStack {
             // 배경: primary 단색
-            Color.brandNavy.ignoresSafeArea()
+            Color.brandDark.ignoresSafeArea()
 
             // 본문
             VStack(spacing: 0) {
@@ -124,7 +124,7 @@ struct ReadingTimerView: View {
 
             // 카운트다운 오버레이 (3-2-1)
             if let count = countdownValue {
-                Color.brandNavy.ignoresSafeArea()
+                Color.brandDark.ignoresSafeArea()
                 Text("\(count)")
                     .font(.system(size: 120, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
