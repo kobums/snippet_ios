@@ -33,16 +33,21 @@ struct DashboardTabView: View {
                 ZStack(alignment: .top) {
                     // 페이지형 TabView는 엣지-투-엣지 구성에서 selection 변경을 무시하는
                     // 문제가 있어, 선택된 섹션을 직접 표시(크로스페이드)한다.
+                    // allowsHitTesting(false)만으로는 List(UIKit 기반)의 터치를 완전히
+                    // 못 막아, 투명한 비선택 섹션이 탭을 가로챈다 — 선택 섹션을 zIndex로 최상단에 올린다.
                     ZStack {
                         DashboardStatsSection(vm: vm, topInset: topInset, bottomInset: bottomInset)
                             .opacity(selectedSubTab == .stats ? 1 : 0)
                             .allowsHitTesting(selectedSubTab == .stats)
+                            .zIndex(selectedSubTab == .stats ? 1 : 0)
                         DashboardProgressSection(vm: vm, topInset: topInset, bottomInset: bottomInset)
                             .opacity(selectedSubTab == .progress ? 1 : 0)
                             .allowsHitTesting(selectedSubTab == .progress)
+                            .zIndex(selectedSubTab == .progress ? 1 : 0)
                         DashboardLibrarySection(vm: vm, topInset: topInset, bottomInset: bottomInset)
                             .opacity(selectedSubTab == .library ? 1 : 0)
                             .allowsHitTesting(selectedSubTab == .library)
+                            .zIndex(selectedSubTab == .library ? 1 : 0)
                     }
                     .animation(.easeInOut(duration: 0.2), value: selectedSubTab)
                     // 콘텐츠가 상태바(시계·배터리) 아래까지 그려져 스크롤 시 비쳐 보인다
