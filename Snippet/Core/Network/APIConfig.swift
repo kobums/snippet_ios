@@ -7,7 +7,8 @@ enum APIConfig {
     /// (실기기에서 로컬 백엔드를 쓰려면 백엔드를 띄우고 맥의 LAN IP로 교체).
     static var baseURL: URL {
         #if DEBUG && targetEnvironment(simulator)
-        URL(string: "http://10.0.1.29:8008/api")!
+        // 시뮬레이터는 맥과 네트워크를 공유하므로 localhost로 로컬 백엔드 접근
+        URL(string: "http://localhost:8008/api")!
         #else
         URL(string: "https://snippetapi.gowoobro.com/api")!
         #endif
