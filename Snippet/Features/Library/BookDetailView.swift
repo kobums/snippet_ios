@@ -3,7 +3,8 @@ import SwiftUI
 // MARK: - BookDetailView
 
 /// 책 상세 화면.
-/// 탭 구조: 정보 | 기록 (스니펫/독서일기/리뷰) | 독서세션
+/// 단일 스크롤 구조: 헤더(분류/상태 칩) → 정보 카드 → 기록 섹션 → 독서세션 섹션.
+/// 기록/세션은 최근 3개만 보여주고 "전체 보기"로 리스트 화면에 진입한다.
 struct BookDetailView: View {
 
     @Environment(\.dismiss) private var dismiss
@@ -11,8 +12,6 @@ struct BookDetailView: View {
     @Bindable var viewModel: LibraryViewModel
 
     @State private var localBook: UserBookDto
-    @State private var selectedDetailTab: DetailTab = .info
-    @State private var selectedRecordTab: RecordType = .snippet
     @State private var showDeleteAlert = false
     @State private var showRatingSheet = false
     @State private var isSaving = false
@@ -33,57 +32,59 @@ struct BookDetailView: View {
         _readPageText = State(initialValue: String(userBook.readPage))
     }
 
-    enum DetailTab: String, CaseIterable {
-        case info = "정보"
-        case records = "기록"
-        case sessions = "독서세션"
-    }
+    /// 섹션 미리보기에 노출할 최대 개수.
+    private static let previewCount = 3
 
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                // 책 헤더
-                BookHeaderView(
-                    title: localBook.title,
-                    author: localBook.author,
-                    coverURLString: localBook.coverUrl,
-                    badge: statusLabel(localBook.status)
-                )
+                // 책 헤더 + 분류/상태 칩
+                VStack(alignment: .leading, spacing: 12) {
+                    BookHeaderView(
+                        title: localBook.title,
+                        author: localBook.author,
+                        coverURLString: localBook.coverUrl
+                    )
+                    attributeChips
+                }
                 .padding()
 
-                // 탭 세그먼트
-                Picker("탭", selection: $selectedDetailTab) {
-                    ForEach(DetailTab.allCases, id: \.self) { tab in
-                        Text(tab.rawValue).tag(tab)
+                // 정보 카드
+                VStack(spacing: 12) {
+                    if localBook.type != .wish {
+                        progressCard
+                    }
+
+                    readingPeriodCard
+
+                    if localBook.type == .borrow {
+                        returnDateCard
+                    }
+
+                    if localBook.status == .completed {
+                        ratingCard
                     }
                 }
-                .pickerStyle(.segmented)
                 .padding(.horizontal)
-                .padding(.bottom, 8)
 
-                // 탭 콘텐츠
-                switch selectedDetailTab {
-                case .info:
-                    infoSection
-                case .records:
-                    recordsSection
-                case .sessions:
-                    sessionsSection
-                }
+                recordsSummarySection
+                    .padding(.top, 28)
+
+                sessionsSummarySection
+                    .padding(.top, 28)
+
+                Spacer(minLength: 32)
             }
         }
         .navigationTitle(localBook.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            // 기록 탭에서만 "기록 추가" 노출 (세션 탭은 독서 타이머 사용).
-            if selectedDetailTab == .records {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Haptics.selection()
-                        showAddRecord = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Haptics.selection()
+                    showAddRecord = true
+                } label: {
+                    Image(systemName: "plus")
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -99,7 +100,7 @@ struct BookDetailView: View {
             Task { await viewModel.loadBookRecords(bookId: localBook.bookId) }
         }) {
             AddRecordView(
-                initialType: selectedRecordTab,
+                initialType: .snippet,
                 lockedBook: localBook,
                 onSaved: { showAddRecord = false }
             )
@@ -130,9 +131,6 @@ struct BookDetailView: View {
             await viewModel.loadBookRecords(bookId: localBook.bookId)
             await viewModel.loadBookSessions(userBookId: localBook.id)
         }
-        .onChange(of: selectedDetailTab) { _, _ in
-            Haptics.selection()
-        }
         .fullScreenCover(isPresented: $showReadingTimer) {
             ReadingTimerView(
                 userBookId: localBook.id,
@@ -148,89 +146,68 @@ struct BookDetailView: View {
         }
     }
 
-    // MARK: - 정보 탭
+    // MARK: - 분류/상태 칩
 
-    private var infoSection: some View {
-        VStack(spacing: 12) {
-            // 분류/상태 선택
-            VStack(spacing: 12) {
-                typeSelector
-                if localBook.type != .wish {
-                    statusSelector
+    private var attributeChips: some View {
+        HStack(spacing: 8) {
+            Spacer(minLength: 0)
+
+            Menu {
+                Picker("분류", selection: Binding(
+                    get: { localBook.type },
+                    set: { newType in
+                        Haptics.selection()
+                        Task { await saveUpdate(.init(type: newType)) }
+                    }
+                )) {
+                    Text("위시리스트").tag(BookType.wish)
+                    Text("소장").tag(BookType.have)
+                    Text("대출").tag(BookType.borrow)
+                    if localBook.type == .returned {
+                        Text("반납").tag(BookType.returned)
+                    }
                 }
+            } label: {
+                chipLabel(typeLabel(localBook.type))
             }
-            .padding()
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
-            .padding(.horizontal)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
 
-            // 진행률 카드 (위시 아님)
             if localBook.type != .wish {
-                progressCard
-                    .padding(.horizontal)
+                Menu {
+                    Picker("상태", selection: Binding(
+                        get: { localBook.status },
+                        set: { newStatus in
+                            Haptics.selection()
+                            Task { await saveUpdate(.init(status: newStatus)) }
+                        }
+                    )) {
+                        Text("읽을 예정").tag(BookStatus.waiting)
+                        Text("읽는 중").tag(BookStatus.reading)
+                        Text("완독").tag(BookStatus.completed)
+                        Text("중단").tag(BookStatus.dropped)
+                    }
+                } label: {
+                    chipLabel(statusLabel(localBook.status))
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
             }
-
-            // 독서 기간 카드
-            readingPeriodCard
-                .padding(.horizontal)
-
-            // 반납 기한 카드 (대출)
-            if localBook.type == .borrow {
-                returnDateCard
-                    .padding(.horizontal)
-            }
-
-            // 별점 카드 (완독)
-            if localBook.status == .completed {
-                ratingCard
-                    .padding(.horizontal)
-            }
-
-            Spacer(minLength: 32)
         }
-        .padding(.top, 8)
     }
 
-    private var typeSelector: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("분류")
-                .font(.caption.weight(.semibold))
+    private func chipLabel(_ text: String) -> some View {
+        HStack(spacing: 4) {
+            Text(text)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.primary)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
-            Picker("분류", selection: Binding(
-                get: { localBook.type },
-                set: { newType in
-                    Task { await saveUpdate(.init(type: newType)) }
-                }
-            )) {
-                Text("위시리스트").tag(BookType.wish)
-                Text("소장").tag(BookType.have)
-                Text("대출").tag(BookType.borrow)
-                if localBook.type == .returned {
-                    Text("반납").tag(BookType.returned)
-                }
-            }
-            .pickerStyle(.segmented)
         }
     }
 
-    private var statusSelector: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("상태")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Picker("상태", selection: Binding(
-                get: { localBook.status },
-                set: { newStatus in
-                    Task { await saveUpdate(.init(status: newStatus)) }
-                }
-            )) {
-                Text("읽을 예정").tag(BookStatus.waiting)
-                Text("읽는 중").tag(BookStatus.reading)
-                Text("완독").tag(BookStatus.completed)
-                Text("중단").tag(BookStatus.dropped)
-            }
-            .pickerStyle(.segmented)
-        }
-    }
+    // MARK: - 정보 카드
 
     private var progressCard: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -460,91 +437,119 @@ struct BookDetailView: View {
         }
     }
 
-    // MARK: - 기록 탭
+    // MARK: - 기록 섹션
 
-    private var recordsSection: some View {
-        VStack(spacing: 0) {
-            // 기록 타입 칩 선택
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(RecordType.allCases, id: \.self) { type in
-                        Button {
-                            Haptics.selection()
-                            selectedRecordTab = type
-                        } label: {
-                            Text(type.label)
-                                .font(.subheadline.weight(.medium))
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 7)
-                                .background(
-                                    selectedRecordTab == type ? Color.accentColor : Color(.secondarySystemBackground),
-                                    in: Capsule()
-                                )
-                                .foregroundStyle(selectedRecordTab == type ? Color.onAccent : .primary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-            }
+    private var recordsSummarySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader(
+                title: "기록",
+                count: viewModel.bookRecords.count,
+                destination: BookRecordsListView(viewModel: viewModel, book: localBook)
+            )
 
             if viewModel.isLoadingBookRecords {
                 ProgressView()
+                    .frame(maxWidth: .infinity)
                     .padding()
+            } else if viewModel.bookRecords.isEmpty {
+                emptySectionCard(
+                    systemImage: "square.and.pencil",
+                    text: "아직 기록이 없습니다. 상단 +로 추가해보세요."
+                )
             } else {
-                let filteredRecords = viewModel.bookRecords.filter { $0.type == selectedRecordTab }
-                if filteredRecords.isEmpty {
-                    EmptyStateView(
-                        systemImage: "square.and.pencil",
-                        title: "아직 \(selectedRecordTab.label)이(가) 없습니다",
-                        message: nil
-                    )
-                    .padding()
-                } else {
-                    LazyVStack(spacing: 8) {
-                        ForEach(filteredRecords) { record in
-                            BookDetailRecordCard(record: record)
-                                .padding(.horizontal)
-                        }
+                VStack(spacing: 8) {
+                    ForEach(viewModel.bookRecords.prefix(Self.previewCount)) { record in
+                        BookDetailRecordCard(record: record)
                     }
-                    .padding(.vertical, 8)
                 }
+                .padding(.horizontal)
             }
-
-            Spacer(minLength: 32)
         }
     }
 
-    // MARK: - 세션 탭
+    // MARK: - 세션 섹션
 
-    private var sessionsSection: some View {
-        VStack(spacing: 0) {
+    private var sessionsSummarySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader(
+                title: "독서 세션",
+                count: viewModel.bookSessions.count,
+                destination: BookSessionsListView(viewModel: viewModel)
+            )
+
             if viewModel.isLoadingBookSessions {
                 ProgressView()
+                    .frame(maxWidth: .infinity)
                     .padding()
             } else if viewModel.bookSessions.isEmpty {
-                EmptyStateView(
+                emptySectionCard(
                     systemImage: "timer",
-                    title: "아직 독서 세션이 없습니다",
-                    message: "독서를 시작해서 기록을 남겨보세요"
+                    text: "아직 독서 세션이 없습니다. 독서를 시작해보세요."
                 )
-                .padding()
             } else {
-                LazyVStack(spacing: 8) {
-                    ForEach(viewModel.bookSessions) { session in
+                VStack(spacing: 8) {
+                    ForEach(viewModel.bookSessions.prefix(Self.previewCount)) { session in
                         BookDetailSessionCard(session: session)
-                            .padding(.horizontal)
                     }
                 }
-                .padding(.vertical, 8)
+                .padding(.horizontal)
             }
-
-            Spacer(minLength: 32)
         }
+    }
+
+    // MARK: - 섹션 공통
+
+    private func sectionHeader(title: String, count: Int, destination: some View) -> some View {
+        HStack {
+            Text(title)
+                .font(.title3.weight(.semibold))
+            if count > 0 {
+                Text("\(count)")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if count > Self.previewCount {
+                NavigationLink {
+                    destination
+                } label: {
+                    HStack(spacing: 2) {
+                        Text("전체 보기")
+                            .font(.subheadline)
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    private func emptySectionCard(systemImage: String, text: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .foregroundStyle(.secondary)
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal)
     }
 
     // MARK: - 헬퍼
+
+    private func typeLabel(_ type: BookType) -> String {
+        switch type {
+        case .wish: return "위시리스트"
+        case .have: return "소장"
+        case .borrow: return "대출"
+        case .returned: return "반납"
+        }
+    }
 
     private func statusLabel(_ status: BookStatus) -> String {
         switch status {
@@ -568,6 +573,112 @@ struct BookDetailView: View {
     }
 }
 
+// MARK: - BookRecordsListView
+
+/// 책의 전체 기록 리스트. 타입(스니펫/독서일기/리뷰) 칩 필터 제공.
+private struct BookRecordsListView: View {
+    @Bindable var viewModel: LibraryViewModel
+    let book: UserBookDto
+
+    @State private var selectedType: RecordType = .snippet
+    @State private var showAddRecord = false
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                // 기록 타입 칩 선택
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(RecordType.allCases, id: \.self) { type in
+                            Button {
+                                Haptics.selection()
+                                selectedType = type
+                            } label: {
+                                Text(type.label)
+                                    .font(.subheadline.weight(.medium))
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 7)
+                                    .background(
+                                        selectedType == type ? Color.accentColor : Color(.secondarySystemBackground),
+                                        in: Capsule()
+                                    )
+                                    .foregroundStyle(selectedType == type ? Color.onAccent : .primary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                }
+
+                let filteredRecords = viewModel.bookRecords.filter { $0.type == selectedType }
+                if filteredRecords.isEmpty {
+                    EmptyStateView(
+                        systemImage: "square.and.pencil",
+                        title: "아직 \(selectedType.label)이(가) 없습니다",
+                        message: nil
+                    )
+                    .padding()
+                } else {
+                    LazyVStack(spacing: 8) {
+                        ForEach(filteredRecords) { record in
+                            BookDetailRecordCard(record: record)
+                                .padding(.horizontal)
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+
+                Spacer(minLength: 32)
+            }
+        }
+        .navigationTitle("기록")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Haptics.selection()
+                    showAddRecord = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $showAddRecord, onDismiss: {
+            Task { await viewModel.loadBookRecords(bookId: book.bookId) }
+        }) {
+            AddRecordView(
+                initialType: selectedType,
+                lockedBook: book,
+                onSaved: { showAddRecord = false }
+            )
+        }
+    }
+}
+
+// MARK: - BookSessionsListView
+
+/// 책의 전체 독서 세션 리스트.
+private struct BookSessionsListView: View {
+    @Bindable var viewModel: LibraryViewModel
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                ForEach(viewModel.bookSessions) { session in
+                    BookDetailSessionCard(session: session)
+                        .padding(.horizontal)
+                }
+            }
+            .padding(.vertical, 8)
+
+            Spacer(minLength: 32)
+        }
+        .navigationTitle("독서 세션")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
 // MARK: - BookDetailRecordCard
 
 private struct BookDetailRecordCard: View {
@@ -576,6 +687,9 @@ private struct BookDetailRecordCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
+                Text(record.type.label)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
                 if let tag = record.tag, !tag.isEmpty {
                     Text("#\(tag)")
                         .font(.caption.weight(.medium))
