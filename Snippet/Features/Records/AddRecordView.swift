@@ -121,23 +121,33 @@ struct AddRecordView: View {
 
     @ViewBuilder
     private var formContent: some View {
-        Form {
-            typeSectionView
-            bookSectionView
-            contentSectionView
-            detailSectionView
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                typeSectionView
+                bookSectionView
+                contentSectionView
+                detailSectionView
+            }
+            .padding(16)
         }
+        // 키보드는 스크롤 제스처를 따라 인터랙티브하게 내려간다 (1:1 추적).
+        .scrollDismissesKeyboard(.interactively)
+        .background(Color(.systemBackground))
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.secondary)
     }
 
     private var typeSectionView: some View {
-        Section("기록 유형") {
-            Picker("유형", selection: $selectedType) {
-                ForEach(RecordType.allCases, id: \.self) { type in
-                    Text(type.label).tag(type)
-                }
-            }
-            .pickerStyle(.segmented)
-            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("기록 유형")
+            GlassSegmentedControl(
+                segments: RecordType.allCases.map { ($0, $0.label) },
+                selection: $selectedType
+            )
         }
     }
 
@@ -145,38 +155,48 @@ struct AddRecordView: View {
 
     @ViewBuilder
     private var bookSectionView: some View {
-        Section("책") {
-            if let lockedBook {
-                // 고정된 책 — 읽기 전용 헤더.
-                BookHeaderView(
-                    title: lockedBook.title,
-                    author: lockedBook.author,
-                    coverURLString: lockedBook.coverUrl
-                )
-                .padding(.vertical, 4)
-            } else if books.isEmpty {
-                // 서재가 비어 있음 — 안내 + 저장 비활성.
-                Label("서재에 책을 먼저 추가해주세요", systemImage: "books.vertical")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            } else if books.count == 1, let only = books.first {
-                // 책이 하나뿐이면 피커 없이 그대로 표시 (Flutter 패리티).
-                bookRow(only)
-                    .padding(.vertical, 4)
-            } else {
-                // 여러 권 — 피커로 선택 (UserBookDto가 Hashable이 아니므로 id로 선택).
-                Picker("책 선택", selection: selectedBookIdBinding) {
-                    ForEach(books) { book in
-                        Text(book.title).tag(book.id)
-                    }
-                }
-                .pickerStyle(.navigationLink)
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("책")
 
-                if let selectedBook {
-                    bookRow(selectedBook)
-                        .padding(.vertical, 4)
+            Group {
+                if let lockedBook {
+                    // 고정된 책 — 읽기 전용 헤더.
+                    BookHeaderView(
+                        title: lockedBook.title,
+                        author: lockedBook.author,
+                        coverURLString: lockedBook.coverUrl
+                    )
+                } else if books.isEmpty {
+                    // 서재가 비어 있음 — 안내 + 저장 비활성.
+                    Label("서재에 책을 먼저 추가해주세요", systemImage: "books.vertical")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else if books.count == 1, let only = books.first {
+                    // 책이 하나뿐이면 피커 없이 그대로 표시 (Flutter 패리티).
+                    bookRow(only)
+                } else if let selectedBook {
+                    // 여러 권 — 선택된 책 행 자체가 메뉴 트리거 (조작 대상 = 컨트롤).
+                    Menu {
+                        Picker("책 선택", selection: selectedBookIdBinding) {
+                            ForEach(books) { book in
+                                Text(book.title).tag(book.id)
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            bookRow(selectedBook)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: AppRadius.cardLarge))
         }
     }
 
@@ -207,12 +227,41 @@ struct AddRecordView: View {
     }
 
     private var contentSectionView: some View {
-        Section {
-            ocrButton
-            TextEditor(text: $bodyText)
-                .frame(minHeight: 150)
-        } header: {
-            Text("내용 *")
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("내용 *")
+
+            VStack(spacing: 0) {
+                ocrButton
+                    .padding(12)
+
+                Divider()
+                    .padding(.leading, 12)
+
+                TextEditor(text: $bodyText)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 160)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .overlay(alignment: .topLeading) {
+                        if bodyText.isEmpty {
+                            Text(editorPlaceholder)
+                                .foregroundStyle(.tertiary)
+                                .padding(.horizontal, 13)
+                                .padding(.vertical, 12)
+                                .allowsHitTesting(false)
+                        }
+                    }
+            }
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: AppRadius.cardLarge))
+        }
+    }
+
+    /// 기록 유형에 맞는 플레이스홀더 — 무엇을 쓰는 자리인지 구체적으로 말해준다.
+    private var editorPlaceholder: String {
+        switch selectedType {
+        case .snippet: "책 속 인상 깊은 문장을 옮겨 적어보세요"
+        case .diary: "오늘의 독서를 기록해보세요"
+        case .review: "이 책에 대한 생각을 남겨보세요"
         }
     }
 
@@ -242,16 +291,32 @@ struct AddRecordView: View {
     }
 
     private var detailSectionView: some View {
-        Section("상세 정보") {
-            HStack {
-                TextField("태그", text: $tagText)
-                    .autocorrectionDisabled()
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("상세 정보")
+
+            HStack(spacing: 12) {
+                HStack(spacing: 6) {
+                    Image(systemName: "number")
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                    TextField("태그", text: $tagText)
+                        .autocorrectionDisabled()
+                }
+
                 Divider()
-                TextField("페이지", text: $pageText)
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: 80)
+                    .frame(height: 20)
+
+                HStack(spacing: 6) {
+                    Image(systemName: "book.pages")
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                    TextField("페이지", text: $pageText)
+                        .keyboardType(.numberPad)
+                        .frame(width: 70)
+                }
             }
+            .padding(12)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: AppRadius.cardLarge))
         }
     }
 
@@ -284,10 +349,12 @@ struct AddRecordView: View {
             _ = try await service.add(request)
         } catch {
             // 저장 실패 시 화면을 닫지 않고 오류를 노출해 기록 유실을 방지한다.
+            Haptics.error()
             errorMessage = "기록 저장에 실패했습니다. 잠시 후 다시 시도해주세요."
             showError = true
             return
         }
+        Haptics.success()
         onSaved?()
         dismiss()
     }
