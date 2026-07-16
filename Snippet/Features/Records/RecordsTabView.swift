@@ -7,6 +7,8 @@ struct RecordsTabView: View {
 
     @State private var vm = RecordsViewModel()
     @State private var selectedSubTab: SubTab = .snippet
+    /// 콘텐츠 전환 방향 — 새로 선택한 탭이 오른쪽이면 오른쪽에서 밀려 들어온다(공간 일관성).
+    @State private var transitionEdge: Edge = .trailing
     @State private var showAddRecord = false
     @State private var showMonthPicker = false
 
@@ -44,21 +46,24 @@ struct RecordsTabView: View {
                 let bottomInset = proxy.safeAreaInsets.bottom + 8
 
                 ZStack(alignment: .top) {
+                    // 탭 순서 방향으로 밀려 들어오는 전환 — 대시보드·통계 상세와 같은 문법(공간 일관성).
+                    // 한 번에 한 뷰만 존재하므로 투명한 List가 터치를 가로채는 문제도 원천 차단된다.
                     ZStack {
-                        RecordListView(vm: vm, type: .snippet)
-                            .opacity(selectedSubTab == .snippet ? 1 : 0)
-                            .allowsHitTesting(selectedSubTab == .snippet)
-                        RecordListView(vm: vm, type: .diary)
-                            .opacity(selectedSubTab == .diary ? 1 : 0)
-                            .allowsHitTesting(selectedSubTab == .diary)
-                        RecordListView(vm: vm, type: .review)
-                            .opacity(selectedSubTab == .review ? 1 : 0)
-                            .allowsHitTesting(selectedSubTab == .review)
-                        SessionsListView(vm: vm)
-                            .opacity(selectedSubTab == .session ? 1 : 0)
-                            .allowsHitTesting(selectedSubTab == .session)
+                        switch selectedSubTab {
+                        case .snippet:
+                            RecordListView(vm: vm, type: .snippet) { Task { await openAddRecord() } }
+                                .transition(.push(from: transitionEdge))
+                        case .diary:
+                            RecordListView(vm: vm, type: .diary) { Task { await openAddRecord() } }
+                                .transition(.push(from: transitionEdge))
+                        case .review:
+                            RecordListView(vm: vm, type: .review) { Task { await openAddRecord() } }
+                                .transition(.push(from: transitionEdge))
+                        case .session:
+                            SessionsListView(vm: vm)
+                                .transition(.push(from: transitionEdge))
+                        }
                     }
-                    .animation(.easeInOut(duration: 0.2), value: selectedSubTab)
                     .contentMargins(.top, topInset, for: .scrollContent)
                     .contentMargins(.bottom, bottomInset, for: .scrollContent)
                     .ignoresSafeArea(edges: [.top, .bottom])
@@ -102,7 +107,17 @@ struct RecordsTabView: View {
         HStack(spacing: 10) {
             FloatingSubTabBar(
                 tabs: SubTab.allCases.map { ($0, $0.title) },
-                selection: $selectedSubTab
+                selection: Binding(
+                    get: { selectedSubTab },
+                    set: { newTab in
+                        guard newTab != selectedSubTab else { return }
+                        transitionEdge = newTab.rawValue > selectedSubTab.rawValue ? .trailing : .leading
+                        Haptics.selection()
+                        withAnimation(.smooth(duration: 0.3)) {
+                            selectedSubTab = newTab
+                        }
+                    }
+                )
             )
 
             // 년월·추가 버튼: 스니펫/일기/리뷰 탭에서만 노출
@@ -155,6 +170,8 @@ private struct RecordListView: View {
 
     @Bindable var vm: RecordsViewModel
     let type: RecordType
+    /// 빈 상태의 "기록 추가" 액션 — 플로팅 바의 +와 같은 동작.
+    var onAdd: () -> Void = {}
 
     @State private var editingRecord: RecordDto? = nil
     @State private var deleteTarget: RecordDto? = nil
@@ -164,16 +181,39 @@ private struct RecordListView: View {
         vm.groupedRecords(for: type)
     }
 
+    /// 타입별로 구체적인 빈 상태 — 무엇이 없고 무엇을 하면 되는지 말해준다.
+    private var emptyContent: (icon: String, title: String, message: String, action: String) {
+        switch type {
+        case .snippet:
+            ("quote.opening", "아직 스니펫이 없어요", "마음에 남은 한 문장을 옮겨 적어보세요.", "스니펫 남기기")
+        case .diary:
+            ("book.pages", "아직 독서 일기가 없어요", "오늘 읽으며 든 생각을 남겨보세요.", "일기 쓰기")
+        case .review:
+            ("star.bubble", "아직 리뷰가 없어요", "완독한 책의 감상을 정리해보세요.", "리뷰 쓰기")
+        }
+    }
+
     var body: some View {
         Group {
             if vm.isLoadingRecords {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error = vm.recordsError {
+                EmptyStateView(
+                    systemImage: "exclamationmark.triangle",
+                    title: "불러올 수 없습니다",
+                    message: error,
+                    actionTitle: "다시 시도"
+                ) {
+                    Task { await vm.loadRecords() }
+                }
             } else if grouped.isEmpty {
                 EmptyStateView(
-                    systemImage: "note.text",
-                    title: "아직 기록이 없습니다",
-                    message: "첫 기록을 추가해보세요!"
+                    systemImage: emptyContent.icon,
+                    title: emptyContent.title,
+                    message: emptyContent.message,
+                    actionTitle: emptyContent.action,
+                    action: onAdd
                 )
             } else {
                 List {
@@ -185,29 +225,36 @@ private struct RecordListView: View {
                             .listRowBackground(Color.clear)
                     }
 
-                    // 책 제목별 그룹
+                    // 책별 그룹 — 표지 + 세리프 제목 헤더
                     ForEach(grouped, id: \.groupId) { group in
                         Section {
-                            // 책 제목 행
-                            Text(group.bookTitle)
-                                .font(.body.weight(.semibold))
-                                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
-                                .listRowSeparator(.hidden)
+                            RecordBookGroupHeader(
+                                title: group.bookTitle,
+                                author: group.records.first?.bookAuthor,
+                                coverUrl: group.records.first?.bookCoverUrl,
+                                count: group.records.count
+                            )
+                            .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
+                            .listRowSeparator(.hidden)
 
-                            // 기록 카드 목록
+                            // 기록 카드 목록 — 버튼으로 감싸 터치 다운 즉시 눌림 피드백
                             ForEach(group.records) { record in
-                                RecordCardView(record: record)
-                                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                                    .listRowSeparator(.hidden)
-                                    .onTapGesture { editingRecord = record }
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                        Button(role: .destructive) {
-                                            deleteTarget = record
-                                            showDeleteAlert = true
-                                        } label: {
-                                            Label("삭제", systemImage: "trash")
-                                        }
+                                Button {
+                                    editingRecord = record
+                                } label: {
+                                    RecordCardView(record: record)
+                                }
+                                .buttonStyle(.pressable)
+                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                .listRowSeparator(.hidden)
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    Button(role: .destructive) {
+                                        deleteTarget = record
+                                        showDeleteAlert = true
+                                    } label: {
+                                        Label("삭제", systemImage: "trash")
                                     }
+                                }
                             }
                         }
                     }

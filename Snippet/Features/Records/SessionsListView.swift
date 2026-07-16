@@ -41,25 +41,29 @@ struct SessionsListView: View {
                             .listRowBackground(Color.clear)
                     }
 
-                    // 책 제목별 그룹
+                    // 책별 그룹 — 표지 + 세리프 제목 헤더 (기록 목록과 같은 문법)
                     ForEach(vm.groupedSessions, id: \.groupId) { group in
                         Section {
-                            // 책 제목 행
-                            Text(group.bookTitle)
-                                .font(.body.weight(.semibold))
-                                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
-                                .listRowSeparator(.hidden)
+                            RecordBookGroupHeader(
+                                title: group.bookTitle,
+                                author: group.sessions.first?.bookAuthor,
+                                coverUrl: group.sessions.first?.bookCoverUrl,
+                                count: group.sessions.count
+                            )
+                            .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
+                            .listRowSeparator(.hidden)
 
-                            // 세션 카드 목록
+                            // 세션 카드 목록 — 버튼으로 감싸 터치 다운 즉시 눌림 피드백
                             ForEach(group.sessions) { session in
-                                ReadingSessionCardView(session: session)
-                                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                                    .listRowSeparator(.hidden)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        selectedBookTitle = group.bookTitle
-                                        selectedSession = session
-                                    }
+                                Button {
+                                    selectedBookTitle = group.bookTitle
+                                    selectedSession = session
+                                } label: {
+                                    ReadingSessionCardView(session: session)
+                                }
+                                .buttonStyle(.pressable)
+                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                .listRowSeparator(.hidden)
                             }
                         }
                     }
@@ -110,32 +114,35 @@ struct ReadingSessionCardView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // 날짜 + 소요시간
-            HStack {
-                Text(formattedDate)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
+        VStack(alignment: .leading, spacing: 6) {
+            // 핵심 값(소요 시간)을 가장 크게 — 페이지 이동은 보조 정보
+            HStack(alignment: .firstTextBaseline) {
                 Text(formattedDuration)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
+                    .font(.headline)
+                    .monospacedDigit()
 
-            // 시작 → 종료 페이지 + 읽은 페이지 수
-            HStack(spacing: 8) {
-                Text("\(session.startPage)p → \(session.endPage)p")
-                    .font(.subheadline)
-                Text("+\(session.pagesRead)p")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color(.systemGreen))
                 Spacer()
+
+                HStack(spacing: 6) {
+                    Text("\(session.startPage) → \(session.endPage)p")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text("+\(session.pagesRead)p")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color(.systemGreen))
+                }
             }
 
-            // 페이스
-            Text(String(format: "페이스: %.1f min/p", minutesPerPage))
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+            // 날짜 · 페이스
+            HStack(spacing: 4) {
+                Text(formattedDate)
+                if minutesPerPage > 0 {
+                    Text("·")
+                    Text(String(format: "%.1f분/쪽", minutesPerPage))
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.tertiary)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -176,7 +183,7 @@ struct SessionDetailSheet: View {
     private var paceText: String {
         guard session.pagesRead > 0 else { return "-" }
         let mpp = Double(session.durationSeconds) / 60.0 / Double(session.pagesRead)
-        return String(format: "%.1f min/p", mpp)
+        return String(format: "%.1f분/쪽", mpp)
     }
 
     var body: some View {

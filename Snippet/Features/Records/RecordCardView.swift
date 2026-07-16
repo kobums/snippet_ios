@@ -51,11 +51,11 @@ struct RecordCardView: View {
                 }
             }
 
-            // 본문
+            // 본문 — 스니펫(인용문)은 앱 시그니처인 세리프 타이포그래피
             Text(record.text)
-                .font(.body)
+                .font(record.type == .snippet ? .quoteBody : .body)
                 .lineLimit(5)
-                .lineSpacing(2)
+                .lineSpacing(record.type == .snippet ? 6 : 2)
                 .multilineTextAlignment(.leading)
         }
         .padding(14)
@@ -71,9 +71,53 @@ struct RecordCardView: View {
     }
 }
 
+// MARK: - 책별 그룹 헤더
+
+/// 기록·세션 목록의 책별 그룹 헤더 — 표지 썸네일 + 세리프 제목 + 저자 + 건수.
+/// 제목만 있던 텍스트 헤더 대신 어떤 책인지 한눈에 보이게 한다.
+struct RecordBookGroupHeader: View {
+
+    let title: String
+    var author: String? = nil
+    var coverUrl: String? = nil
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 10) {
+            BookCoverView(
+                urlString: coverUrl,
+                size: .custom(width: 34, height: 48, cornerRadius: 4),
+                showsShadow: false
+            )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.serifHeadline)
+                    .lineLimit(1)
+                if let author, !author.isEmpty {
+                    Text(author)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer()
+
+            Text("\(count)")
+                .font(.footnote.weight(.medium))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
 #Preview {
-    RecordCardView(record: RecordDto.preview)
-        .padding()
+    VStack(spacing: 16) {
+        RecordBookGroupHeader(title: "데미안", author: "헤르만 헤세", count: 3)
+        RecordCardView(record: RecordDto.preview)
+    }
+    .padding()
 }
 
 private extension RecordDto {
