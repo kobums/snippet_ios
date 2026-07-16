@@ -38,43 +38,43 @@ struct BookDetailView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                // 책 헤더 + 분류/상태 칩
-                VStack(alignment: .leading, spacing: 12) {
-                    BookHeaderView(
-                        title: localBook.title,
-                        author: localBook.author,
-                        coverURLString: localBook.coverUrl
-                    )
-                    attributeChips
-                }
-                .padding()
+                heroHeader
+                    .padding(.horizontal)
+                    .padding(.top, 12)
 
-                // 정보 카드
+                // 주 행동 CTA — 히어로 바로 아래, 대상(책)과 가까이.
+                if localBook.status == .reading {
+                    startReadingButton
+                        .padding(.horizontal)
+                        .padding(.top, 24)
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                }
+
+                // 정보 카드 — 분류/상태 변경으로 카드가 나타나고 사라질 때 스프링으로 재배치.
                 VStack(spacing: 12) {
                     if localBook.type != .wish {
                         progressCard
                     }
 
-                    readingPeriodCard
-
-                    if localBook.type == .borrow {
-                        returnDateCard
-                    }
-
-                    if localBook.status == .completed {
-                        ratingCard
-                    }
+                    detailsCard
                 }
                 .padding(.horizontal)
+                .padding(.top, 24)
 
                 recordsSummarySection
-                    .padding(.top, 28)
+                    .padding(.top, 32)
 
                 sessionsSummarySection
-                    .padding(.top, 28)
+                    .padding(.top, 32)
 
                 Spacer(minLength: 32)
             }
+            .animation(.smooth(duration: 0.35), value: localBook.status)
+            .animation(.smooth(duration: 0.35), value: localBook.type)
+        }
+        .background(alignment: .top) {
+            ambientCoverBackground
+                .ignoresSafeArea(edges: .top)
         }
         .navigationTitle(localBook.title)
         .navigationBarTitleDisplayMode(.inline)
@@ -89,6 +89,7 @@ struct BookDetailView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(role: .destructive) {
+                    Haptics.warning()
                     showDeleteAlert = true
                 } label: {
                     Image(systemName: "trash")
@@ -127,6 +128,27 @@ struct BookDetailView: View {
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showStartDatePicker) {
+            DatePickerSheet(title: "시작 날짜", date: $tempStartDate) {
+                Task { await saveUpdate(.init(startDate: APIDate.dayString(from: tempStartDate))) }
+            }
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showEndDatePicker) {
+            DatePickerSheet(title: "완료 날짜", date: $tempEndDate) {
+                Task { await saveUpdate(.init(endDate: APIDate.dayString(from: tempEndDate))) }
+            }
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showReturnDatePicker) {
+            DatePickerSheet(title: "반납 예정일", date: $tempReturnDate) {
+                Task { await saveUpdate(.init(returnDate: APIDate.dayString(from: tempReturnDate))) }
+            }
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
         .task {
             await viewModel.loadBookRecords(bookId: localBook.bookId)
             await viewModel.loadBookSessions(userBookId: localBook.id)
@@ -146,12 +168,82 @@ struct BookDetailView: View {
         }
     }
 
+    // MARK: - 히어로 헤더
+
+    /// 중앙 대형 표지 + 세리프 제목 + 저자 + 분류/상태 칩.
+    /// 큰 표면일수록 깊은 그림자 — 표지가 화면 위에 떠 있는 물성을 만든다.
+    private var heroHeader: some View {
+        VStack(spacing: 0) {
+            BookCoverView(
+                urlString: localBook.coverUrl,
+                size: .custom(width: 136, height: 198, cornerRadius: AppRadius.cardLarge),
+                showsShadow: false
+            )
+            .shadow(color: .black.opacity(0.25), radius: 16, x: 0, y: 8)
+
+            Text(localBook.title)
+                .font(.serifTitle)
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+                .padding(.top, 20)
+
+            if !localBook.author.isEmpty {
+                Text(localBook.author)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .padding(.top, 4)
+            }
+
+            attributeChips
+                .padding(.top, 16)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// 표지 색을 크게 블러해 히어로 뒤에 깔아주는 앰비언트 배경.
+    /// 아래로 갈수록 사라져 콘텐츠와 자연스럽게 이어진다(스크롤 엣지 효과).
+    private var ambientCoverBackground: some View {
+        AsyncImage(url: localBook.coverUrl.isEmpty ? nil : URL(string: localBook.coverUrl)) { phase in
+            if case .success(let image) = phase {
+                image
+                    .resizable()
+                    .scaledToFill()
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 260)
+        .clipped()
+        .blur(radius: 60)
+        .opacity(0.35)
+        .mask(LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom))
+        .allowsHitTesting(false)
+    }
+
+    // MARK: - 주 행동 CTA
+
+    /// 독서 시작 — 읽는 중 상태에서만 노출되는 화면의 주 행동.
+    private var startReadingButton: some View {
+        Button {
+            Haptics.medium()
+            showReadingTimer = true
+        } label: {
+            Label("독서 시작", systemImage: "play.fill")
+                .font(.headline)
+                // 다크 모드에서 accent(흰색) 캡슐 위 라벨이 흰색으로 렌더링되지 않도록 onAccent 강제.
+                .foregroundStyle(Color.onAccent)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+        }
+        .buttonStyle(.glassProminent)
+        .buttonBorderShape(.capsule)
+    }
+
     // MARK: - 분류/상태 칩
 
+    // 칩은 히어로 중앙 — 조작 대상(책) 바로 아래에 붙어 관계를 드러낸다.
     private var attributeChips: some View {
         HStack(spacing: 8) {
-            Spacer(minLength: 0)
-
             Menu {
                 Picker("분류", selection: Binding(
                     get: { localBook.type },
@@ -210,15 +302,17 @@ struct BookDetailView: View {
     // MARK: - 정보 카드
 
     private var progressCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
                 Text("진행률")
                     .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
                 Spacer()
                 if localBook.totalPage > 0 {
                     Text("\(Int(localBook.progress * 100))%")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Color.accentText)
+                        .font(.statValueSmall)
+                        .monospacedDigit()
+                        .contentTransition(.numericText(value: localBook.progress))
                 }
             }
 
@@ -228,10 +322,11 @@ struct BookDetailView: View {
             }
 
             HStack(spacing: 8) {
-                TextField("읽은 페이지", text: $readPageText)
+                TextField("페이지", text: $readPageText)
                     .keyboardType(.numberPad)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 100)
+                    .frame(width: 90)
+                    .onSubmit { commitReadPage() }
 
                 if localBook.totalPage > 0 {
                     Text("/ \(localBook.totalPage) 페이지")
@@ -241,124 +336,112 @@ struct BookDetailView: View {
 
                 Spacer()
 
+                // 저장 중에는 스피너로 진행 상태를 노출 — 상태 피드백.
                 Button {
-                    let page = Int(readPageText) ?? 0
-                    Task {
-                        var req = UserBookUpdateRequest(readPage: page)
-                        if page == localBook.totalPage && localBook.totalPage > 0 {
-                            req.status = .completed
-                            if localBook.endDate == nil {
-                                req.endDate = APIDate.dayString()
-                            }
-                        }
-                        await saveUpdate(req)
-                        if page == localBook.totalPage && localBook.totalPage > 0 {
-                            showRatingSheet = true
-                        }
-                    }
+                    commitReadPage()
                 } label: {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title3)
-                        .foregroundStyle(isSaving ? Color.secondary : Color.accentText)
+                    if isSaving {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(width: 24, height: 24)
+                    } else {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(Color.accentText)
+                    }
                 }
                 .disabled(isSaving)
             }
-
-            // 독서 시작 버튼 (읽는 중 상태일 때만)
-            if localBook.status == .reading {
-                Button {
-                    Haptics.medium()
-                    showReadingTimer = true
-                } label: {
-                    Label("독서 시작", systemImage: "play.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.onAccent)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 10))
-                }
-                .buttonStyle(.plain)
-            }
         }
         .padding()
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: AppRadius.cardLarge))
+        // 진행률 변경은 현재 값에서 목표 값으로 스프링 전환 (바 + 퍼센트 동시).
+        .animation(.smooth(duration: 0.5), value: localBook.progress)
     }
 
-    private var readingPeriodCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("독서 기간")
-                .font(.subheadline.weight(.semibold))
+    /// 읽은 페이지 커밋. 버튼 탭과 키보드 완료가 같은 경로를 탄다.
+    /// 마지막 페이지 도달 시 완독 처리 + 성공 햅틱 + 별점 시트.
+    private func commitReadPage() {
+        let page = Int(readPageText) ?? 0
+        Task {
+            var req = UserBookUpdateRequest(readPage: page)
+            let isCompleting = page == localBook.totalPage && localBook.totalPage > 0
+            if isCompleting {
+                req.status = .completed
+                if localBook.endDate == nil {
+                    req.endDate = APIDate.dayString()
+                }
+            }
+            await saveUpdate(req)
+            if isCompleting {
+                Haptics.success()
+                showRatingSheet = true
+            } else {
+                Haptics.light()
+            }
+        }
+    }
 
-            Button {
+    /// 시작일·완료일·반납·별점을 한 카드에 행으로 묶은 상세 정보(설정 앱식 그룹 리스트).
+    /// 흩어져 있던 세 카드를 하나로 — 같은 성격의 정보는 한 그룹에 (proximity = relationship).
+    private var detailsCard: some View {
+        VStack(spacing: 0) {
+            detailRow(label: "시작일", value: localBook.startDate.map { String($0.prefix(10)) }) {
                 if let startDateStr = localBook.startDate {
                     tempStartDate = APIDate.parseDay(String(startDateStr.prefix(10))) ?? Date()
                 }
                 showStartDatePicker = true
-            } label: {
-                HStack {
-                    Text("시작")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(localBook.startDate.map { String($0.prefix(10)) } ?? "미설정")
-                        .font(.subheadline)
-                        .foregroundStyle(localBook.startDate != nil ? .primary : .tertiary)
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .buttonStyle(.plain)
-            .sheet(isPresented: $showStartDatePicker) {
-                DatePickerSheet(title: "시작 날짜", date: $tempStartDate) {
-                    Task { await saveUpdate(.init(startDate: APIDate.dayString(from: tempStartDate))) }
-                }
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
             }
 
             if localBook.status == .completed {
-                Divider()
-                Button {
+                rowDivider
+                detailRow(label: "완료일", value: localBook.endDate.map { String($0.prefix(10)) }) {
                     if let endDateStr = localBook.endDate {
                         tempEndDate = APIDate.parseDay(String(endDateStr.prefix(10))) ?? Date()
                     }
                     showEndDatePicker = true
-                } label: {
-                    HStack {
-                        Text("완료")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(localBook.endDate.map { String($0.prefix(10)) } ?? "미설정")
-                            .font(.subheadline)
-                            .foregroundStyle(localBook.endDate != nil ? .primary : .tertiary)
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .buttonStyle(.plain)
-                .sheet(isPresented: $showEndDatePicker) {
-                    DatePickerSheet(title: "완료 날짜", date: $tempEndDate) {
-                        Task { await saveUpdate(.init(endDate: APIDate.dayString(from: tempEndDate))) }
-                    }
-                    .presentationDetents([.medium])
-                    .presentationDragIndicator(.visible)
                 }
             }
+
+            if localBook.type == .borrow {
+                rowDivider
+                detailRow(
+                    label: "반납 예정일",
+                    value: localBook.returnDate.map { String($0.prefix(10)) },
+                    badge: ddayBadge
+                ) {
+                    if let returnDateStr = localBook.returnDate {
+                        tempReturnDate = APIDate.parseDay(String(returnDateStr.prefix(10))) ?? Date().addingTimeInterval(60 * 60 * 24 * 14)
+                    }
+                    showReturnDatePicker = true
+                }
+            }
+
+            if localBook.status == .completed {
+                rowDivider
+                ratingRow
+            }
         }
-        .padding()
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: AppRadius.cardLarge))
     }
 
-    private var returnDateCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("반납 기한")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                if let badge = ddayBadge {
+    private var rowDivider: some View {
+        Divider().padding(.leading, 16)
+    }
+
+    private func detailRow(
+        label: String,
+        value: String?,
+        badge: (text: String, color: Color)? = nil,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Text(label)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                if let badge {
                     Text(badge.text)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.white)
@@ -366,58 +449,52 @@ struct BookDetailView: View {
                         .padding(.vertical, 3)
                         .background(badge.color, in: Capsule())
                 }
-            }
 
-            Button {
-                if let returnDateStr = localBook.returnDate {
-                    tempReturnDate = APIDate.parseDay(String(returnDateStr.prefix(10))) ?? Date().addingTimeInterval(60 * 60 * 24 * 14)
-                }
-                showReturnDatePicker = true
-            } label: {
-                HStack {
-                    Text("반납 예정일")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(localBook.returnDate.map { String($0.prefix(10)) } ?? "미설정")
-                        .font(.subheadline)
-                        .foregroundStyle(localBook.returnDate != nil ? .primary : .tertiary)
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
+                Spacer()
+
+                Text(value ?? "미설정")
+                    .font(.subheadline)
+                    .foregroundStyle(value != nil ? .primary : .tertiary)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
             }
-            .buttonStyle(.plain)
-            .sheet(isPresented: $showReturnDatePicker) {
-                DatePickerSheet(title: "반납 예정일", date: $tempReturnDate) {
-                    Task { await saveUpdate(.init(returnDate: APIDate.dayString(from: tempReturnDate))) }
-                }
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
         }
-        .padding()
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        .buttonStyle(.plain)
     }
 
-    private var ratingCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
+    private var ratingRow: some View {
+        Button {
+            showRatingSheet = true
+        } label: {
+            HStack(spacing: 8) {
                 Text("별점")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Button(localBook.rating != nil ? "수정" : "평가하기") {
-                    showRatingSheet = true
-                }
-                .font(.subheadline)
-            }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
 
-            if let rating = localBook.rating, rating > 0 {
-                RatingStarsView(rating: rating)
+                Spacer()
+
+                if let rating = localBook.rating, rating > 0 {
+                    RatingStarsView(rating: rating, starSize: 14, spacing: 2)
+                } else {
+                    Text("평가하기")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.accentText)
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
         }
-        .padding()
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        .buttonStyle(.plain)
     }
 
     private var ddayBadge: (text: String, color: Color)? {
@@ -465,6 +542,7 @@ struct BookDetailView: View {
                 .padding(.horizontal)
             }
         }
+        .animation(.smooth(duration: 0.3), value: viewModel.isLoadingBookRecords)
     }
 
     // MARK: - 세션 섹션
@@ -495,6 +573,7 @@ struct BookDetailView: View {
                 .padding(.horizontal)
             }
         }
+        .animation(.smooth(duration: 0.3), value: viewModel.isLoadingBookSessions)
     }
 
     // MARK: - 섹션 공통
@@ -842,8 +921,9 @@ private struct RatingSheet: View {
                     Text(labels[rating])
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .transition(.opacity)
-                        .animation(.easeInOut, value: rating)
+                        .contentTransition(.opacity)
+                        .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                        .animation(.smooth(duration: 0.25), value: rating)
                 }
 
                 Spacer()
