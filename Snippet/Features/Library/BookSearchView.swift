@@ -86,7 +86,6 @@ struct BookSearchView: View {
                         dismiss()
                     }
                 )
-                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showScanner) {
@@ -123,17 +122,19 @@ struct BookSearchView: View {
     private var resultsList: some View {
         List {
             ForEach(viewModel.searchResults, id: \.isbn) { book in
-                BookSearchResultRow(book: book)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                        selectedBook = book
+                // Button이어야 터치 다운 즉시 행 하이라이트가 뜬다(onTapGesture는 떼기 전까지 무반응).
+                Button {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    selectedBook = book
+                } label: {
+                    BookSearchResultRow(book: book)
+                }
+                .buttonStyle(.plain)
+                .onAppear {
+                    if book == viewModel.searchResults.last {
+                        Task { await viewModel.loadMoreSearchResults() }
                     }
-                    .onAppear {
-                        if book == viewModel.searchResults.last {
-                            Task { await viewModel.loadMoreSearchResults() }
-                        }
-                    }
+                }
             }
             if viewModel.isLoadingMoreSearch {
                 HStack {
@@ -206,6 +207,8 @@ struct AddBookSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedType: BookType
     @State private var selectedStatus: BookStatus = .waiting
+    /// 콘텐츠 실측 높이 — 시트가 콘텐츠에 딱 맞게 self-sizing되어 고정 CTA와 겹치지 않는다.
+    @State private var sheetHeight: CGFloat = 420
 
     init(book: BookSearchDto, preselectedType: BookType = .have, onAdd: @escaping (LibraryAddRequest) -> Void) {
         self.book = book
@@ -214,110 +217,116 @@ struct AddBookSheet: View {
         _selectedType = State(initialValue: preselectedType == .wish ? .wish : (preselectedType == .borrow ? .borrow : .have))
     }
 
-    private var isoNow: String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: Date())
-    }
-
     private var dateStr: String {
         APIDate.dayString()
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // 책 정보 행
-                    HStack(spacing: 12) {
-                        BookCoverView(urlString: book.coverUrl, size: .large)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(book.title)
-                                .font(.subheadline.weight(.semibold))
-                                .lineLimit(3)
-                            Text(book.author)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .padding()
-                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        VStack(alignment: .leading, spacing: 28) {
+            // 헤더 — 취소 / 타이틀 (self-sizing 시트라 NavigationStack 대신 직접 구성)
+            ZStack {
+                Text("책 추가")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
 
-                    // 분류 선택
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("분류")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.secondary)
-
-                        Picker("분류", selection: $selectedType) {
-                            Text("위시리스트").tag(BookType.wish)
-                            Text("소장").tag(BookType.have)
-                            Text("대출").tag(BookType.borrow)
-                        }
-                        .pickerStyle(.segmented)
-                        .onChange(of: selectedType) { _, newType in
-                            if newType == .wish {
-                                selectedStatus = .none
-                            } else if selectedStatus == .none {
-                                selectedStatus = .waiting
-                            }
-                        }
-                    }
-
-                    // 상태 선택 (위시 아님)
-                    if selectedType != .wish {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("상태")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.secondary)
-
-                            Picker("상태", selection: $selectedStatus) {
-                                Text("읽을 예정").tag(BookStatus.waiting)
-                                Text("읽는 중").tag(BookStatus.reading)
-                                Text("완독").tag(BookStatus.completed)
-                            }
-                            .pickerStyle(.segmented)
-                        }
-                    }
-
-                    // 추가 버튼
-                    Button {
-                        let request = LibraryAddRequest(
-                            title: book.title,
-                            author: book.author,
-                            publisher: book.publisher,
-                            pubDate: book.pubDate,
-                            isbn: book.isbn,
-                            coverUrl: book.coverUrl,
-                            totalPage: book.totalPage ?? 0,
-                            type: selectedType,
-                            status: selectedType == .wish ? .none : selectedStatus,
-                            readPage: 0,
-                            startDate: selectedStatus == .reading || selectedStatus == .completed ? dateStr : "",
-                            endDate: selectedStatus == .completed ? dateStr : "",
-                            createDate: dateStr
-                        )
-                        onAdd(request)
-                    } label: {
-                        Text("추가하기")
-                            .font(.body.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .foregroundStyle(Color.onAccent)
-                }
-                .padding()
-            }
-            .navigationTitle("책 추가")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                HStack {
                     Button("취소") { dismiss() }
+                        .buttonStyle(.glass)
+                    Spacer()
                 }
             }
+
+            BookHeaderView(
+                title: book.title,
+                author: book.author,
+                coverURLString: book.coverUrl
+            )
+
+            // 분류 선택
+            VStack(alignment: .leading, spacing: 10) {
+                Text("분류")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                GlassSegmentedControl(
+                    segments: [
+                        (BookType.wish, "위시리스트"),
+                        (BookType.have, "소장"),
+                        (BookType.borrow, "대출"),
+                    ],
+                    selection: $selectedType
+                )
+                .onChange(of: selectedType) { _, newType in
+                    if newType == .wish {
+                        selectedStatus = .none
+                    } else if selectedStatus == .none {
+                        selectedStatus = .waiting
+                    }
+                }
+            }
+
+            // 상태 선택 (위시 아님) — 분류 아래에서 같은 경로로 나타나고 사라지며,
+            // 시트 높이도 함께 스프링으로 줄고 늘어난다.
+            if selectedType != .wish {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("상태")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    GlassSegmentedControl(
+                        segments: [
+                            (BookStatus.waiting, "읽을 예정"),
+                            (BookStatus.reading, "읽는 중"),
+                            (BookStatus.completed, "완독"),
+                        ],
+                        selection: $selectedStatus
+                    )
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            addButton
         }
+        .padding(20)
+        .animation(.spring(response: 0.35, dampingFraction: 1.0), value: selectedType == .wish)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { newHeight in
+            sheetHeight = newHeight
+        }
+        .presentationDetents([.height(sheetHeight)])
+    }
+
+    /// 추가하기 — 시트의 주 행동. BookDetailView의 '독서 시작'과 같은 글래스 캡슐 CTA.
+    private var addButton: some View {
+        Button {
+            Haptics.success()
+            let request = LibraryAddRequest(
+                title: book.title,
+                author: book.author,
+                publisher: book.publisher,
+                pubDate: book.pubDate,
+                isbn: book.isbn,
+                coverUrl: book.coverUrl,
+                totalPage: book.totalPage ?? 0,
+                type: selectedType,
+                status: selectedType == .wish ? .none : selectedStatus,
+                readPage: 0,
+                startDate: selectedStatus == .reading || selectedStatus == .completed ? dateStr : "",
+                endDate: selectedStatus == .completed ? dateStr : "",
+                createDate: dateStr
+            )
+            onAdd(request)
+        } label: {
+            Text("추가하기")
+                .font(.headline)
+                // 다크 모드에서 accent(흰색) 캡슐 위 라벨이 흰색으로 렌더링되지 않도록 onAccent 강제.
+                .foregroundStyle(Color.onAccent)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+        }
+        .buttonStyle(.glassProminent)
+        .buttonBorderShape(.capsule)
     }
 }
 
