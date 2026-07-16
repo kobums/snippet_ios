@@ -3,16 +3,13 @@ import UserNotifications
 
 /// 탭 4 — 프로필 (MyPageScreen).
 /// 01-screens.md §7 스펙 기반. List/Form 네이티브 표준.
+/// 로그아웃·회원 탈퇴는 프로필 카드로 진입하는 계정 화면(`AccountView`)에만 둔다.
 struct ProfileView: View {
     @Environment(AuthSession.self) private var session
     @Environment(ThemeManager.self) private var themeManager
 
-    @State private var showLogoutConfirm    = false
-    @State private var showDeleteConfirm    = false
-    @State private var showAppInfo          = false
-    @State private var isDeleting           = false
-    @State private var deleteError: String? = nil
-    @State private var showSuggestion       = false
+    @State private var showAppInfo    = false
+    @State private var showSuggestion = false
 
     /// OCR 엔진 설정 (온디바이스 / Google / Naver) — OCRResultView와 공유.
     @AppStorage(OCREnginePreference.storageKey) private var ocrEngine: OCREnginePreference = .onDevice
@@ -23,52 +20,26 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             List {
-                // MARK: 사용자 정보 카드
+                // MARK: 사용자 정보 카드 → 계정 화면 진입 (iOS 설정 Apple ID 카드 문법)
                 profileHeaderSection
 
                 // MARK: 설정 섹션
                 settingsSection
 
-                // MARK: 계정 액션 섹션
-                accountActionsSection
+                // MARK: 지원 섹션
+                supportSection
             }
+            .navigationTitle("프로필")
             .task { await refreshNotificationStatus() }
             // 기능 제안 화면 push
             .navigationDestination(isPresented: $showSuggestion) {
                 SuggestionView()
-            }
-            // 로그아웃 확인
-            .confirmationDialog("로그아웃", isPresented: $showLogoutConfirm, titleVisibility: .visible) {
-                Button("로그아웃", role: .destructive) {
-                    session.logout()
-                }
-                Button("취소", role: .cancel) { }
-            } message: {
-                Text("로그아웃하시겠습니까?")
-            }
-            // 회원탈퇴 확인
-            .confirmationDialog("회원 탈퇴", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-                Button("탈퇴하기", role: .destructive) {
-                    Task { await performDeleteAccount() }
-                }
-                Button("취소", role: .cancel) { }
-            } message: {
-                Text("탈퇴하면 모든 데이터가 삭제됩니다. 정말 탈퇴하시겠습니까?")
             }
             // 앱 정보 다이얼로그
             .alert("앱 정보", isPresented: $showAppInfo) {
                 Button("확인", role: .cancel) { }
             } message: {
                 Text("Snippet\n버전 \(appVersion)\n\n표지 없이, 문장으로만 만나는 책\n\n© 2025 gowoobro")
-            }
-            // 회원탈퇴 에러
-            .alert("오류", isPresented: Binding(
-                get: { deleteError != nil },
-                set: { if !$0 { deleteError = nil } }
-            )) {
-                Button("확인", role: .cancel) { deleteError = nil }
-            } message: {
-                Text(deleteError ?? "")
             }
         }
     }
@@ -78,33 +49,39 @@ struct ProfileView: View {
     private var profileHeaderSection: some View {
         Section {
             if let user = session.currentUser {
-                HStack(spacing: 16) {
-                    // 원형 아바타 — 이름 첫 글자
-                    ZStack {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [.accentColor, .accentColor.opacity(0.6)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
+                NavigationLink {
+                    AccountView()
+                } label: {
+                    HStack(spacing: 16) {
+                        // 원형 아바타 — 이름 첫 글자
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.accentColor, .accentColor.opacity(0.6)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
                                 )
-                            )
-                            .frame(width: 64, height: 64)
-                        Text(String(user.name.prefix(1)))
-                            .font(.title.weight(.semibold))
-                            .foregroundStyle(Color.onAccent)
-                    }
+                                .frame(width: 64, height: 64)
+                            Text(String(user.name.prefix(1)))
+                                .font(.title.weight(.semibold))
+                                .foregroundStyle(Color.onAccent)
+                        }
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(user.name)
-                            .font(.title3.weight(.semibold))
-                        Text(user.email)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(user.name)
+                                .font(.title3.weight(.semibold))
+                            Text(user.email)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                    .padding(.vertical, 8)
                 }
-                .padding(.vertical, 8)
             }
+        } footer: {
+            Text("계정 관리는 프로필 카드를 눌러 진행하세요.")
         }
     }
 
@@ -146,7 +123,13 @@ struct ProfileView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+        }
+    }
 
+    // MARK: - 지원 섹션
+
+    private var supportSection: some View {
+        Section {
             // 기능 제안
             Button {
                 showSuggestion = true
@@ -162,37 +145,14 @@ struct ProfileView: View {
                 Label("앱 정보", systemImage: "info.circle")
                     .foregroundStyle(.primary)
             }
-        }
-    }
-
-    // MARK: - 계정 액션 섹션
-
-    private var accountActionsSection: some View {
-        Section {
-            // 로그아웃
-            Button(role: .destructive) {
-                showLogoutConfirm = true
-            } label: {
-                if isDeleting {
-                    HStack {
-                        Text("처리 중...")
-                        Spacer()
-                        ProgressView()
-                    }
-                } else {
-                    Label("로그아웃", systemImage: "rectangle.portrait.and.arrow.right")
-                        .foregroundStyle(.red)
-                }
-            }
-
-            // 회원탈퇴
-            Button(role: .destructive) {
-                showDeleteConfirm = true
-            } label: {
-                Label("회원 탈퇴", systemImage: "trash")
-                    .foregroundStyle(.red)
-            }
-            .disabled(isDeleting)
+        } header: {
+            Text("지원")
+        } footer: {
+            // 앱 아이덴티티 각주 — 어떤 앱의 몇 번째 버전인지 항상 확인 가능
+            Text("Snippet 버전 \(appVersion)")
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
+                .padding(.top, 8)
         }
     }
 
@@ -224,18 +184,6 @@ struct ProfileView: View {
                 UIApplication.shared.open(url)
             }
         }
-    }
-
-    // MARK: - 회원탈퇴
-
-    private func performDeleteAccount() async {
-        isDeleting = true
-        do {
-            try await session.deleteAccount()
-        } catch {
-            deleteError = error.localizedDescription
-        }
-        isDeleting = false
     }
 
     // MARK: - 헬퍼
