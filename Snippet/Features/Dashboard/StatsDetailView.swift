@@ -9,6 +9,8 @@ struct StatsDetailView: View {
 
     @Bindable var vm: DashboardViewModel
     @State private var selectedSubTab: SubTab = .period
+    /// 콘텐츠 전환 방향 — 새로 선택한 탭이 오른쪽이면 오른쪽에서 밀려 들어온다(공간 일관성).
+    @State private var transitionEdge: Edge = .trailing
     @Environment(\.dismiss) private var dismiss
 
     private var yearOptions: [Int] {
@@ -34,18 +36,20 @@ struct StatsDetailView: View {
             let bottomInset = proxy.safeAreaInsets.bottom + 8
 
             ZStack(alignment: .top) {
+                // 탭 순서 방향으로 밀려 들어오는 전환 — 진행 섹션과 같은 문법(공간 일관성).
                 ZStack {
-                    PeriodStatsTab(monthly: vm.monthlyStats, yearly: vm.yearlyStats)
-                        .opacity(selectedSubTab == .period ? 1 : 0)
-                        .allowsHitTesting(selectedSubTab == .period)
-                    CategoryStatsTab(stats: vm.categoryStats)
-                        .opacity(selectedSubTab == .category ? 1 : 0)
-                        .allowsHitTesting(selectedSubTab == .category)
-                    InsightsTab(insights: vm.insights)
-                        .opacity(selectedSubTab == .insights ? 1 : 0)
-                        .allowsHitTesting(selectedSubTab == .insights)
+                    switch selectedSubTab {
+                    case .period:
+                        PeriodStatsTab(monthly: vm.monthlyStats, yearly: vm.yearlyStats)
+                            .transition(.push(from: transitionEdge))
+                    case .category:
+                        CategoryStatsTab(stats: vm.categoryStats)
+                            .transition(.push(from: transitionEdge))
+                    case .insights:
+                        InsightsTab(insights: vm.insights)
+                            .transition(.push(from: transitionEdge))
+                    }
                 }
-                .animation(.easeInOut(duration: 0.2), value: selectedSubTab)
                 .contentMargins(.top, topInset, for: .scrollContent)
                 .contentMargins(.bottom, bottomInset, for: .scrollContent)
                 .ignoresSafeArea(edges: [.top, .bottom])
@@ -76,7 +80,17 @@ struct StatsDetailView: View {
 
             FloatingSubTabBar(
                 tabs: SubTab.allCases.map { ($0, $0.title) },
-                selection: $selectedSubTab,
+                selection: Binding(
+                    get: { selectedSubTab },
+                    set: { newTab in
+                        guard newTab != selectedSubTab else { return }
+                        transitionEdge = newTab.rawValue > selectedSubTab.rawValue ? .trailing : .leading
+                        Haptics.selection()
+                        withAnimation(.smooth(duration: 0.3)) {
+                            selectedSubTab = newTab
+                        }
+                    }
+                ),
                 compact: true
             )
 
@@ -118,8 +132,12 @@ private struct PeriodStatsTab: View {
         ScrollView {
             VStack(spacing: 20) {
                 if monthly.isEmpty && yearly.isEmpty {
-                    EmptyStateView(systemImage: "chart.bar", title: "데이터가 없습니다")
-                        .padding(.top, 60)
+                    EmptyStateView(
+                        systemImage: "chart.bar",
+                        title: "아직 완독한 책이 없어요",
+                        message: "책을 완독하면 월별·연도별 통계가 여기에 채워져요."
+                    )
+                    .padding(.top, 60)
                 }
 
                 // ── 월별 ──
@@ -253,8 +271,12 @@ private struct CategoryStatsTab: View {
         ScrollView {
             VStack(spacing: 16) {
                 if stats.isEmpty {
-                    EmptyStateView(systemImage: "chart.pie", title: "데이터가 없습니다")
-                        .padding(.top, 60)
+                    EmptyStateView(
+                        systemImage: "chart.pie",
+                        title: "카테고리 분포가 비어 있어요",
+                        message: "책을 완독하면 어떤 장르를 즐겨 읽는지 보여드려요."
+                    )
+                    .padding(.top, 60)
                 } else {
                     // 도넛 차트
                     CategoryDonutChartView(stats: stats)
@@ -304,78 +326,196 @@ private struct InsightsTab: View {
 
     let insights: ReadingInsightsDto?
 
+    /// 전 지표가 비어 있으면 빈 상태로 취급한다.
+    private var hasData: Bool {
+        guard let ins = insights else { return false }
+        return ins.averageReadingDays > 0
+            || ins.longestReadingDays > 0
+            || !ins.topCategory.isEmpty
+            || !ins.longestBook.isEmpty
+    }
+
     var body: some View {
         ScrollView {
-            if let ins = insights {
+            if let ins = insights, hasData {
                 VStack(spacing: 12) {
-                    InsightRow(
-                        gradient: [Color(.systemBlue), Color(.systemCyan)],
-                        icon: "clock",
+                    // 핵심 지표 — 가장 중요한 숫자를 가장 크게(위계).
+                    InsightHeroCard(
+                        icon: "clock.fill",
+                        tint: Color(.systemBlue),
                         title: "평균 독서 기간",
-                        value: "\(String(format: "%.1f", ins.averageReadingDays))일",
-                        description: "책 한 권을 완독하는 평균 시간"
+                        value: String(format: "%.1f", ins.averageReadingDays),
+                        unit: "일",
+                        description: "책 한 권을 완독하는 데 걸리는 평균 기간"
                     )
-                    InsightRow(
-                        gradient: [Color(.systemGreen), Color.brandGreen],
-                        icon: "tag",
-                        title: "선호 카테고리",
-                        value: ins.topCategory.isEmpty ? "-" : ins.topCategory,
-                        description: "가장 많이 읽은 장르"
-                    )
-                    InsightRow(
-                        gradient: [Color(.systemOrange), Color(.systemYellow)],
-                        icon: "trophy",
-                        title: "최장 독서 기록",
-                        value: "\(ins.longestReadingDays)일",
-                        description: "한 책을 읽은 최장 기간"
-                    )
-                    InsightRow(
-                        gradient: [Color.accentPurple, Color(.systemPink)],
-                        icon: "book",
+
+                    // 보조 숫자 지표 — 2열
+                    HStack(alignment: .top, spacing: 12) {
+                        InsightStatCard(
+                            icon: "trophy.fill",
+                            tint: Color(.systemOrange),
+                            title: "최장 독서 기록",
+                            value: "\(ins.longestReadingDays)",
+                            unit: "일"
+                        )
+                        InsightStatCard(
+                            icon: "tag.fill",
+                            tint: .brandGreen,
+                            title: "선호 카테고리",
+                            value: ins.topCategory.isEmpty ? nil : ins.topCategory
+                        )
+                    }
+
+                    // 책 인사이트 — 시그니처 세리프로 책 제목 강조
+                    InsightBookCard(
                         title: "가장 오래 읽은 책",
-                        value: ins.longestBook.isEmpty ? "-" : ins.longestBook,
+                        bookTitle: ins.longestBook.isEmpty ? nil : ins.longestBook,
                         description: "완독까지 가장 오래 걸린 책"
                     )
+
                     Spacer(minLength: 24)
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
+                .animation(.smooth(duration: 0.3), value: ins)
             } else {
-                EmptyStateView(systemImage: "lightbulb", title: "데이터가 없습니다")
-                    .padding(.top, 60)
+                EmptyStateView(
+                    systemImage: "lightbulb",
+                    title: "아직 인사이트가 없어요",
+                    message: "독서 기록이 쌓이면 나만의 독서 패턴을 분석해드려요."
+                )
+                .padding(.top, 60)
             }
         }
     }
 }
 
-// MARK: - 인사이트 행 카드
+// MARK: - 인사이트 아이콘 칩 (공통)
 
-private struct InsightRow: View {
+private struct InsightIconChip: View {
 
-    let gradient: [Color]
     let icon: String
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: icon)
+            .font(.system(size: 16, weight: .medium))
+            .foregroundStyle(tint)
+            .frame(width: 36, height: 36)
+            .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+// MARK: - 인사이트 히어로 카드 (전폭 · 대형 숫자)
+
+private struct InsightHeroCard: View {
+
+    let icon: String
+    let tint: Color
     let title: String
     let value: String
+    let unit: String
     let description: String
 
     var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.system(size: 24))
-                .foregroundStyle(.white)
-                .frame(width: 52, height: 52)
-                .background(
-                    LinearGradient(colors: gradient, startPoint: .topLeading, endPoint: .bottomTrailing),
-                    in: RoundedRectangle(cornerRadius: 14)
-                )
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                InsightIconChip(icon: icon, tint: tint)
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+            }
 
-            VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text(value)
+                    .font(.statValueLarge)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                Text(unit)
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(description)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+// MARK: - 인사이트 통계 카드 (2열 그리드용)
+
+private struct InsightStatCard: View {
+
+    let icon: String
+    let tint: Color
+    let title: String
+    /// nil이면 아직 데이터가 없다는 뜻 — 플레이스홀더를 보여준다.
+    let value: String?
+    var unit: String = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            InsightIconChip(icon: icon, tint: tint)
+
+            if let value {
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    Text(value)
+                        .font(.statValueSmall)
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                    if !unit.isEmpty {
+                        Text(unit)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                Text("아직 없어요")
+                    .font(.headline)
+                    .foregroundStyle(.tertiary)
+            }
+
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+// MARK: - 인사이트 책 카드 (세리프 제목)
+
+private struct InsightBookCard: View {
+
+    let title: String
+    let bookTitle: String?
+    let description: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            InsightIconChip(icon: "book.fill", tint: .accentPurple)
+
+            VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text(value)
-                    .font(.headline)
-                    .lineLimit(2)
+                if let bookTitle {
+                    Text(bookTitle)
+                        .font(.serifHeadline)
+                        .lineLimit(2)
+                } else {
+                    Text("아직 없어요")
+                        .font(.headline)
+                        .foregroundStyle(.tertiary)
+                }
                 Text(description)
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
@@ -383,11 +523,7 @@ private struct InsightRow: View {
             Spacer()
         }
         .padding(16)
-        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color(.separator), lineWidth: 0.5)
-        )
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 }
 

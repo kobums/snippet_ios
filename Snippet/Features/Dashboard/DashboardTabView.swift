@@ -255,48 +255,100 @@ private struct DashboardProgressSection: View {
     let bottomInset: CGFloat
     // 책 행 → BookDetailView 이동용
     @State private var libraryVM = LibraryViewModel()
+    /// 콘텐츠 전환 방향 — 새로 선택한 탭이 오른쪽이면 오른쪽에서 밀려 들어온다(공간 일관성).
+    @State private var transitionEdge: Edge = .trailing
 
-    private var statusPicker: some View {
-        Picker("상태", selection: $vm.selectedProgressStatus) {
-            Text("대기중").tag(BookStatus.waiting)
-            Text("읽는중").tag(BookStatus.reading)
-            Text("완독").tag(BookStatus.completed)
+    /// 진행 상태 탭 순서. 전환 방향 판단의 기준.
+    private static let statuses: [(status: BookStatus, title: String)] = [
+        (.waiting, "대기중"),
+        (.reading, "읽는중"),
+        (.completed, "완독"),
+    ]
+
+    private func count(for status: BookStatus) -> Int {
+        vm.allProgressBooks.count { $0.status == status }
+    }
+
+    // 햅틱은 GlassSegmentedControl이 선택 시점에 울리므로 여기서는 전환만 처리한다.
+    private func select(_ status: BookStatus) {
+        guard status != vm.selectedProgressStatus else { return }
+        let oldIndex = Self.statuses.firstIndex { $0.status == vm.selectedProgressStatus } ?? 0
+        let newIndex = Self.statuses.firstIndex { $0.status == status } ?? 0
+        transitionEdge = newIndex > oldIndex ? .trailing : .leading
+        withAnimation(.smooth(duration: 0.3)) {
+            vm.selectedProgressStatus = status
         }
-        .pickerStyle(.segmented)
+    }
+
+    /// 상태 필터 바 — 공용 GlassSegmentedControl에 권수 뱃지를 붙여 사용.
+    /// 바인딩 set에서 select()를 태워 전환 방향·애니메이션을 함께 처리한다.
+    private var statusFilterBar: some View {
+        GlassSegmentedControl(
+            segments: Self.statuses.map { ($0.status, $0.title) },
+            selection: Binding(
+                get: { vm.selectedProgressStatus },
+                set: { select($0) }
+            ),
+            count: { status in count(for: status) }
+        )
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
     }
 
     var body: some View {
-        if vm.filteredProgressBooks.isEmpty {
-            VStack(spacing: 0) {
-                statusPicker
-                EmptyStateView(
-                    systemImage: "book",
-                    title: "책이 없습니다",
-                    message: "이 상태의 책이 없습니다."
-                )
-            }
-            .padding(.top, topInset)
-        } else {
-            List(vm.filteredProgressBooks) { book in
-                NavigationLink {
-                    BookDetailView(userBook: book, viewModel: libraryVM)
-                } label: {
-                    BookRowView(book: book, showProgress: true)
-                }
-                .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                .listRowSeparator(.hidden)
-            }
-            .listStyle(.plain)
-            .contentMargins(.bottom, bottomInset, for: .scrollContent)
-            .refreshable { await vm.refreshProgress() }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                statusPicker
-                    .padding(.top, topInset)
+        ZStack {
+            if vm.filteredProgressBooks.isEmpty {
+                emptyState
+                    .id(vm.selectedProgressStatus)
+                    .transition(.push(from: transitionEdge))
+            } else {
+                bookList
+                    .id(vm.selectedProgressStatus)
+                    .transition(.push(from: transitionEdge))
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            statusFilterBar
+                .padding(.top, topInset)
+        }
+    }
+
+    private var bookList: some View {
+        List(vm.filteredProgressBooks) { book in
+            BookRowView(book: book, showProgress: true)
+                // NavigationLink를 숨김 배경에 두면 시스템 disclosure(>) 없이 행 전체가 링크가 된다.
+                .background(
+                    NavigationLink("") {
+                        BookDetailView(userBook: book, viewModel: libraryVM)
+                    }
+                    .opacity(0)
+                )
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .listRowSeparator(.hidden)
+        }
+        .listStyle(.plain)
+        .contentMargins(.bottom, bottomInset, for: .scrollContent)
+        .refreshable { await vm.refreshProgress() }
+    }
+
+    /// 상태별로 구체적인 빈 화면 — 무엇이 없고 무엇을 하면 되는지 말해준다.
+    private var emptyState: some View {
+        let content: (icon: String, title: String, message: String) =
+            switch vm.selectedProgressStatus {
+            case .waiting:
+                ("clock", "대기중인 책이 없습니다", "서재에서 책을 '읽을 예정'으로 표시해보세요.")
+            case .completed:
+                ("checkmark.seal", "아직 완독한 책이 없습니다", "첫 완독을 향해 달려보세요!")
+            default:
+                ("book", "읽는중인 책이 없습니다", "대기중인 책의 독서를 시작해보세요.")
+            }
+
+        return EmptyStateView(
+            systemImage: content.icon,
+            title: content.title,
+            message: content.message
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -311,24 +363,9 @@ private struct DashboardLibrarySection: View {
     @State private var libraryVM = LibraryViewModel()
 
     private var searchField: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField("제목이나 저자로 검색...", text: $vm.librarySearchQuery)
-                .autocorrectionDisabled()
-            if !vm.librarySearchQuery.isEmpty {
-                Button {
-                    vm.librarySearchQuery = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .padding(10)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        SearchField(prompt: "제목이나 저자로 검색", text: $vm.librarySearchQuery)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
     }
 
     var body: some View {
@@ -344,14 +381,16 @@ private struct DashboardLibrarySection: View {
             .padding(.top, topInset)
         } else {
             List(vm.filteredLibraryBooks) { book in
-                NavigationLink {
-                    BookDetailView(userBook: book, viewModel: libraryVM)
-                } label: {
-                    BookRowView(book: book, showProgress: true)
-                }
-                .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                .listRowSeparator(.hidden)
+                BookRowView(book: book, showProgress: true)
+                    // NavigationLink를 숨김 배경에 두면 시스템 disclosure(>) 없이 행 전체가 링크가 된다.
+                    .background(
+                        NavigationLink("") {
+                            BookDetailView(userBook: book, viewModel: libraryVM)
+                        }
+                        .opacity(0)
+                    )
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowSeparator(.hidden)
             }
             .listStyle(.plain)
             .contentMargins(.bottom, bottomInset, for: .scrollContent)
