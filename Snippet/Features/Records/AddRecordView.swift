@@ -33,12 +33,9 @@ struct AddRecordView: View {
     @State private var errorMessage: String? = nil
     @State private var showError = false
 
-    // OCR 관련 상태
-    @State private var showOCRSourceDialog = false
+    // OCR 관련 상태 — 나머지 파이프라인 상태는 ocrCaptureFlow가 소유.
     @State private var showCameraPicker = false
     @State private var showPhotoPicker = false
-    @State private var capturedImage: UIImage? = nil
-    @State private var showOCRResult = false
 
     init(
         initialType: RecordType,
@@ -118,25 +115,11 @@ struct AddRecordView: View {
                 } message: {
                     Text(errorMessage ?? "저장 중 오류가 발생했습니다.")
                 }
-                .fullScreenCover(isPresented: $showCameraPicker) {
-                    CameraPicker(image: $capturedImage)
-                        .ignoresSafeArea()
-                }
-                .background {
-                    PhotoPicker(image: $capturedImage, isPresented: $showPhotoPicker)
-                }
-                .onChange(of: capturedImage) { _, newImage in
-                    if newImage != nil { showOCRResult = true }
-                }
-                .sheet(isPresented: $showOCRResult, onDismiss: {
-                    capturedImage = nil
-                }) {
-                    if let image = capturedImage {
-                        OCRResultView(image: image) { recognizedText in
-                            bodyText = bodyText.isEmpty ? recognizedText : bodyText + "\n" + recognizedText
-                        }
-                    }
-                }
+                .ocrCaptureFlow(
+                    showCameraPicker: $showCameraPicker,
+                    showPhotoPicker: $showPhotoPicker,
+                    bodyText: $bodyText
+                )
         }
     }
 
@@ -148,8 +131,13 @@ struct AddRecordView: View {
             VStack(alignment: .leading, spacing: 24) {
                 typeSectionView
                 bookSectionView
-                contentSectionView
-                detailSectionView
+                RecordContentSection(
+                    bodyText: $bodyText,
+                    placeholder: selectedType.editorPlaceholder,
+                    showCameraPicker: $showCameraPicker,
+                    showPhotoPicker: $showPhotoPicker
+                )
+                RecordDetailFieldsSection(tagText: $tagText, pageText: $pageText)
             }
             .padding(16)
         }
@@ -158,15 +146,9 @@ struct AddRecordView: View {
         .background(Color(.systemBackground))
     }
 
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.secondary)
-    }
-
     private var typeSectionView: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("기록 유형")
+            SectionHeaderView(title: "기록 유형")
             GlassSegmentedControl(
                 segments: RecordType.allCases.map { ($0, $0.label) },
                 selection: $selectedType
@@ -179,7 +161,7 @@ struct AddRecordView: View {
     @ViewBuilder
     private var bookSectionView: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("책")
+            SectionHeaderView(title: "책")
 
             Group {
                 if let lockedBook {
@@ -246,97 +228,6 @@ struct AddRecordView: View {
                 }
             }
             Spacer(minLength: 0)
-        }
-    }
-
-    private var contentSectionView: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("내용")
-
-            VStack(spacing: 0) {
-                ocrButton
-                    .padding(12)
-
-                Divider()
-                    .padding(.leading, 12)
-
-                TextEditor(text: $bodyText)
-                    .scrollContentBackground(.hidden)
-                    .frame(minHeight: 160)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .overlay(alignment: .topLeading) {
-                        if bodyText.isEmpty {
-                            Text(editorPlaceholder)
-                                .foregroundStyle(.tertiary)
-                                .padding(.horizontal, 13)
-                                .padding(.vertical, 12)
-                                .allowsHitTesting(false)
-                        }
-                    }
-            }
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: AppRadius.cardLarge))
-        }
-    }
-
-    /// 기록 유형에 맞는 플레이스홀더 — 무엇을 쓰는 자리인지 구체적으로 말해준다.
-    private var editorPlaceholder: String {
-        switch selectedType {
-        case .snippet: "책 속 인상 깊은 문장을 옮겨 적어보세요"
-        case .diary: "오늘의 독서를 기록해보세요"
-        case .review: "이 책에 대한 생각을 남겨보세요"
-        }
-    }
-
-    private var ocrButton: some View {
-        Button {
-            showOCRSourceDialog = true
-        } label: {
-            HStack {
-                Image(systemName: "camera")
-                    .foregroundStyle(Color.accentText)
-                Text("카메라로 텍스트 추출")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.accentText)
-                Spacer()
-            }
-        }
-        .confirmationDialog("텍스트 추출 방식 선택", isPresented: $showOCRSourceDialog, titleVisibility: .visible) {
-            if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                Button("카메라 촬영") { showCameraPicker = true }
-            }
-            Button("사진 선택") { showPhotoPicker = true }
-            Button("취소", role: .cancel) {}
-        }
-    }
-
-    private var detailSectionView: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("상세 정보")
-
-            HStack(spacing: 12) {
-                HStack(spacing: 6) {
-                    Image(systemName: "number")
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
-                    TextField("태그", text: $tagText)
-                        .autocorrectionDisabled()
-                }
-
-                Divider()
-                    .frame(height: 20)
-
-                HStack(spacing: 6) {
-                    Image(systemName: "book.pages")
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
-                    TextField("페이지", text: $pageText)
-                        .keyboardType(.numberPad)
-                        .frame(width: 70)
-                }
-            }
-            .padding(12)
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: AppRadius.cardLarge))
         }
     }
 

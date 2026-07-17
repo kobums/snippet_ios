@@ -22,17 +22,14 @@ struct EditRecordView: View {
     @State private var isSaving = false
     @State private var isDeleting = false
     @State private var showDeleteConfirm = false
+    @State private var showDeleteError = false
     @State private var showDiscardDialog = false
-    @State private var errorTitle = "저장 실패"
     @State private var errorMessage: String? = nil
     @State private var showError = false
 
-    // OCR 관련 상태
-    @State private var showOCRSourceDialog = false
+    // OCR 관련 상태 — 나머지 파이프라인 상태는 ocrCaptureFlow가 소유.
     @State private var showCameraPicker = false
     @State private var showPhotoPicker = false
-    @State private var capturedImage: UIImage? = nil
-    @State private var showOCRResult = false
 
     // 메모 이미지 내보내기
     @State private var showNotesExport = false
@@ -80,8 +77,13 @@ struct EditRecordView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     bookSectionView
-                    contentSectionView
-                    detailSectionView
+                    RecordContentSection(
+                        bodyText: $bodyText,
+                        placeholder: selectedType.editorPlaceholder,
+                        showCameraPicker: $showCameraPicker,
+                        showPhotoPicker: $showPhotoPicker
+                    )
+                    RecordDetailFieldsSection(tagText: $tagText, pageText: $pageText)
                     exportSectionView
                     deleteSectionView
                 }
@@ -91,10 +93,6 @@ struct EditRecordView: View {
             }
             // 키보드는 스크롤 제스처를 따라 인터랙티브하게 내려간다 (AddRecordView와 동일).
             .scrollDismissesKeyboard(.interactively)
-            // .background(alignment: .topLeading {
-            //     ambientCoverBackground
-            //         .ignoresSafeArea(edges: .top)
-            // })
             .background(Color(.systemBackground))
             .navigationTitle("기록 수정")
             .navigationBarTitleDisplayMode(.inline)
@@ -133,55 +131,25 @@ struct EditRecordView: View {
                 Button("변경 사항 폐기", role: .destructive) { dismiss() }
                 Button("계속 편집", role: .cancel) {}
             }
-            .alert(errorTitle, isPresented: $showError) {
+            .alert("저장 실패", isPresented: $showError) {
                 Button("확인", role: .cancel) {}
             } message: {
                 Text(errorMessage ?? "저장 중 오류가 발생했습니다.")
             }
-            // 카메라 촬영 sheet
-            .fullScreenCover(isPresented: $showCameraPicker) {
-                CameraPicker(image: $capturedImage)
-                    .ignoresSafeArea()
-            }
-            // 사진 선택 (PhotosPicker — 시뮬레이터 지원)
-            .background {
-                PhotoPicker(image: $capturedImage, isPresented: $showPhotoPicker)
-            }
-            // 이미지 선택 완료 → OCR 결과 화면 표시
-            .onChange(of: capturedImage) { _, newImage in
-                if newImage != nil {
-                    showOCRResult = true
-                }
-            }
+            .deleteFailureAlert(isPresented: $showDeleteError)
+            .ocrCaptureFlow(
+                showCameraPicker: $showCameraPicker,
+                showPhotoPicker: $showPhotoPicker,
+                bodyText: $bodyText
+            )
             // 메모 이미지 내보내기 시트
             .sheet(isPresented: $showNotesExport) {
                 NotesExportSheet(record: draftRecord)
             }
-            // OCR 결과 편집 화면
-            .sheet(isPresented: $showOCRResult, onDismiss: {
-                capturedImage = nil
-            }) {
-                if let image = capturedImage {
-                    OCRResultView(image: image) { recognizedText in
-                        // 확정된 텍스트를 본문에 삽입 (기존 내용이 있으면 줄바꿈 후 추가)
-                        if bodyText.isEmpty {
-                            bodyText = recognizedText
-                        } else {
-                            bodyText += "\n" + recognizedText
-                        }
-                    }
-                }
-            }
         }
     }
 
-    // MARK: - Form Sections (AddRecordView와 동일한 폼 스타일)
-
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.secondary)
-    }
+    // MARK: - Form Sections (내용·상세 정보는 RecordFormSections 공용 컴포넌트 사용)
 
     /// 책 정보 (읽기 전용) — 책 상세보기의 히어로 헤더와 같은 문법:
     /// 중앙 대형 표지(깊은 그림자) + 세리프 제목 + 저자 + 유형 칩.
@@ -236,115 +204,6 @@ struct EditRecordView: View {
             .padding(.top, 16)
         }
         .frame(maxWidth: .infinity)
-    }
-
-    /// 표지 색을 크게 블러해 히어로 뒤에 깔아주는 앰비언트 배경 (책 상세보기와 동일).
-    private var ambientCoverBackground: some View {
-        AsyncImage(url: record.bookCoverUrl.isEmpty ? nil : URL(string: record.bookCoverUrl)) { phase in
-            if case .success(let image) = phase {
-                image
-                    .resizable()
-                    .scaledToFill()
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 260)
-        .clipped()
-        .blur(radius: 60)
-        .opacity(0.35)
-        .mask(LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom))
-        .allowsHitTesting(false)
-    }
-
-    private var contentSectionView: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("내용")
-
-            VStack(spacing: 0) {
-                ocrButton
-                    .padding(12)
-
-                Divider()
-                    .padding(.leading, 12)
-
-                TextEditor(text: $bodyText)
-                    .scrollContentBackground(.hidden)
-                    .frame(minHeight: 160)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .overlay(alignment: .topLeading) {
-                        if bodyText.isEmpty {
-                            Text(editorPlaceholder)
-                                .foregroundStyle(.tertiary)
-                                .padding(.horizontal, 13)
-                                .padding(.vertical, 12)
-                                .allowsHitTesting(false)
-                        }
-                    }
-            }
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: AppRadius.cardLarge))
-        }
-    }
-
-    /// 기록 유형에 맞는 플레이스홀더 — 내용을 모두 지웠을 때 무엇을 쓰는 자리인지 알려준다.
-    private var editorPlaceholder: String {
-        switch selectedType {
-        case .snippet: "책 속 인상 깊은 문장을 옮겨 적어보세요"
-        case .diary: "오늘의 독서를 기록해보세요"
-        case .review: "이 책에 대한 생각을 남겨보세요"
-        }
-    }
-
-    private var ocrButton: some View {
-        Button {
-            showOCRSourceDialog = true
-        } label: {
-            HStack {
-                Image(systemName: "camera")
-                    .foregroundStyle(Color.accentText)
-                Text("카메라로 텍스트 추출")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.accentText)
-                Spacer()
-            }
-        }
-        .confirmationDialog("텍스트 추출 방식 선택", isPresented: $showOCRSourceDialog, titleVisibility: .visible) {
-            if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                Button("카메라 촬영") { showCameraPicker = true }
-            }
-            Button("사진 선택") { showPhotoPicker = true }
-            Button("취소", role: .cancel) {}
-        }
-    }
-
-    private var detailSectionView: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("상세 정보")
-
-            HStack(spacing: 12) {
-                HStack(spacing: 6) {
-                    Image(systemName: "number")
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
-                    TextField("태그", text: $tagText)
-                        .autocorrectionDisabled()
-                }
-
-                Divider()
-                    .frame(height: 20)
-
-                HStack(spacing: 6) {
-                    Image(systemName: "book.pages")
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
-                    TextField("페이지", text: $pageText)
-                        .keyboardType(.numberPad)
-                        .frame(width: 70)
-                }
-            }
-            .padding(12)
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: AppRadius.cardLarge))
-        }
     }
 
     private var exportSectionView: some View {
@@ -406,7 +265,6 @@ struct EditRecordView: View {
     private func save() async {
         let trimmed = bodyText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            errorTitle = "저장 실패"
             errorMessage = "내용을 입력해주세요."
             showError = true
             return
@@ -429,7 +287,6 @@ struct EditRecordView: View {
             dismiss()
         } else {
             Haptics.error()
-            errorTitle = "저장 실패"
             errorMessage = "저장 중 오류가 발생했습니다."
             showError = true
         }
@@ -446,9 +303,7 @@ struct EditRecordView: View {
             dismiss()
         } else {
             Haptics.error()
-            errorTitle = "삭제 실패"
-            errorMessage = "삭제 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
-            showError = true
+            showDeleteError = true
         }
     }
 }
