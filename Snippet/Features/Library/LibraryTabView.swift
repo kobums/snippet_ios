@@ -164,6 +164,8 @@ private struct LibrarySubTabView: View {
     let onDelete: (Int) async -> Void
     let onUpdate: (Int, UserBookUpdateRequest) async -> Void
     let viewModel: LibraryViewModel
+    /// 표지 → 책 상세 줌 전환 네임스페이스.
+    @Namespace private var bookZoom
 
     private let columns = [
         GridItem(.adaptive(minimum: 160), spacing: 12)
@@ -217,12 +219,14 @@ private struct LibrarySubTabView: View {
                         ForEach(books) { book in
                             NavigationLink {
                                 BookDetailView(userBook: book, viewModel: viewModel)
+                                    .navigationTransition(.zoom(sourceID: book.id, in: bookZoom))
                             } label: {
                                 BookGridCard(
                                     book: book,
                                     onUpdate: { req in
                                         Task { await onUpdate(book.id, req) }
-                                    }
+                                    },
+                                    zoomNamespace: bookZoom
                                 )
                             }
                             .buttonStyle(.plain)
@@ -255,6 +259,8 @@ private struct LibrarySubTabView: View {
 struct BookGridCard: View {
     let book: UserBookDto
     var onUpdate: ((UserBookUpdateRequest) -> Void)?
+    /// 표지를 책 상세 줌 전환의 소스로 지정할 네임스페이스. nil이면 전환 소스 없이 그린다.
+    var zoomNamespace: Namespace.ID? = nil
 
     private var statusBadgeColor: Color {
         switch book.status {
@@ -306,6 +312,7 @@ struct BookGridCard: View {
                         )
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .zoomTransitionSource(id: book.id, in: zoomNamespace)
 
                 if book.status != .none {
                     Text(statusLabel)

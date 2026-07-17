@@ -10,6 +10,8 @@ struct DashboardTabView: View {
     @State private var selectedSubTab: SubTab = .stats
     /// 년월 휠 피커 시트.
     @State private var showMonthPicker = false
+    /// 통계 버튼 → 통계 상세 줌 전환 네임스페이스.
+    @Namespace private var statsZoom
 
     enum SubTab: Int, CaseIterable {
         case stats, progress, library
@@ -102,10 +104,11 @@ struct DashboardTabView: View {
         )
     }
 
-    /// 통계 상세 진입 원형 글래스 버튼.
+    /// 통계 상세 진입 원형 글래스 버튼 — 버튼 자리에서 확대되는 줌 전환.
     private var statsDetailButton: some View {
         NavigationLink {
             StatsDetailView(vm: vm)
+                .navigationTransition(.zoom(sourceID: "statsDetail", in: statsZoom))
         } label: {
             Image(systemName: "chart.bar.xaxis")
                 .font(.system(size: 17))
@@ -113,6 +116,7 @@ struct DashboardTabView: View {
         }
         .buttonStyle(.glass)
         .buttonBorderShape(.circle)
+        .matchedTransitionSource(id: "statsDetail", in: statsZoom)
     }
 }
 
@@ -129,6 +133,8 @@ private struct DashboardStatsSection: View {
     @State private var navigateToStats = false
     // 완독한 책 탭 → BookDetailView 이동용 (BookDetailView가 LibraryViewModel을 요구)
     @State private var libraryVM = LibraryViewModel()
+    /// 책 행 → 책 상세 줌 전환 네임스페이스.
+    @Namespace private var bookZoom
 
     var body: some View {
         ScrollView {
@@ -220,8 +226,9 @@ private struct DashboardStatsSection: View {
                         ForEach(vm.completedBooksThisMonth) { book in
                             NavigationLink {
                                 BookDetailView(userBook: book, viewModel: libraryVM)
+                                    .navigationTransition(.zoom(sourceID: book.id, in: bookZoom))
                             } label: {
-                                BookRowView(book: book)
+                                BookRowView(book: book, zoomNamespace: bookZoom)
                                     .padding(.horizontal, 16)
                             }
                             .buttonStyle(.plain)
@@ -255,6 +262,8 @@ private struct DashboardProgressSection: View {
     let bottomInset: CGFloat
     // 책 행 → BookDetailView 이동용
     @State private var libraryVM = LibraryViewModel()
+    /// 책 행 → 책 상세 줌 전환 네임스페이스.
+    @Namespace private var bookZoom
     /// 콘텐츠 전환 방향 — 새로 선택한 탭이 오른쪽이면 오른쪽에서 밀려 들어온다(공간 일관성).
     @State private var transitionEdge: Edge = .trailing
 
@@ -315,11 +324,12 @@ private struct DashboardProgressSection: View {
 
     private var bookList: some View {
         List(vm.filteredProgressBooks) { book in
-            BookRowView(book: book, showProgress: true)
+            BookRowView(book: book, showProgress: true, zoomNamespace: bookZoom)
                 // NavigationLink를 숨김 배경에 두면 시스템 disclosure(>) 없이 행 전체가 링크가 된다.
                 .background(
                     NavigationLink("") {
                         BookDetailView(userBook: book, viewModel: libraryVM)
+                            .navigationTransition(.zoom(sourceID: book.id, in: bookZoom))
                     }
                     .opacity(0)
                 )
@@ -361,6 +371,8 @@ private struct DashboardLibrarySection: View {
     let bottomInset: CGFloat
     // 책 행 → BookDetailView 이동용
     @State private var libraryVM = LibraryViewModel()
+    /// 책 행 → 책 상세 줌 전환 네임스페이스.
+    @Namespace private var bookZoom
 
     private var searchField: some View {
         SearchField(prompt: "제목이나 저자로 검색", text: $vm.librarySearchQuery)
@@ -381,11 +393,12 @@ private struct DashboardLibrarySection: View {
             .padding(.top, topInset)
         } else {
             List(vm.filteredLibraryBooks) { book in
-                BookRowView(book: book, showProgress: true)
+                BookRowView(book: book, showProgress: true, zoomNamespace: bookZoom)
                     // NavigationLink를 숨김 배경에 두면 시스템 disclosure(>) 없이 행 전체가 링크가 된다.
                     .background(
                         NavigationLink("") {
                             BookDetailView(userBook: book, viewModel: libraryVM)
+                                .navigationTransition(.zoom(sourceID: book.id, in: bookZoom))
                         }
                         .opacity(0)
                     )
@@ -583,6 +596,8 @@ struct BookRowView: View {
 
     let book: UserBookDto
     var showProgress: Bool = false
+    /// 표지를 책 상세 줌 전환의 소스로 지정할 네임스페이스. nil이면 전환 소스 없이 그린다.
+    var zoomNamespace: Namespace.ID? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -597,6 +612,7 @@ struct BookRowView: View {
             }
             .frame(width: 44, height: 64)
             .clipShape(RoundedRectangle(cornerRadius: 6))
+            .zoomTransitionSource(id: book.id, in: zoomNamespace)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(book.title)
