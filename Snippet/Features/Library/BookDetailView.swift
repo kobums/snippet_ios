@@ -13,6 +13,7 @@ struct BookDetailView: View {
 
     @State private var localBook: UserBookDto
     @State private var showDeleteAlert = false
+    @State private var showDeleteError = false
     @State private var showRatingSheet = false
     @State private var isSaving = false
     @State private var readPageText = ""
@@ -87,13 +88,17 @@ struct BookDetailView: View {
                     Image(systemName: "plus")
                 }
             }
+            // 파괴적 액션은 자주 쓰는 + 버튼 옆에 직접 노출하지 않고 더보기 메뉴 안에 둔다.
             ToolbarItem(placement: .topBarTrailing) {
-                Button(role: .destructive) {
-                    Haptics.warning()
-                    showDeleteAlert = true
+                Menu {
+                    Button(role: .destructive) {
+                        Haptics.warning()
+                        showDeleteAlert = true
+                    } label: {
+                        Label("서재에서 삭제", systemImage: "trash")
+                    }
                 } label: {
-                    Image(systemName: "trash")
-                        .foregroundStyle(.red)
+                    Image(systemName: "ellipsis.circle")
                 }
             }
         }
@@ -109,13 +114,23 @@ struct BookDetailView: View {
         .alert("책 삭제", isPresented: $showDeleteAlert) {
             Button("삭제", role: .destructive) {
                 Task {
-                    _ = await viewModel.deleteBook(id: localBook.id)
-                    dismiss()
+                    if await viewModel.deleteBook(id: localBook.id) {
+                        Haptics.success()
+                        dismiss()
+                    } else {
+                        Haptics.error()
+                        showDeleteError = true
+                    }
                 }
             }
             Button("취소", role: .cancel) {}
         } message: {
             Text("'\(localBook.title)'을(를) 서재에서 삭제하시겠습니까?")
+        }
+        .alert("삭제 실패", isPresented: $showDeleteError) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text("삭제 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
         }
         .sheet(isPresented: $showRatingSheet) {
             RatingSheet(
@@ -455,10 +470,6 @@ struct BookDetailView: View {
                 Text(value ?? "미설정")
                     .font(.subheadline)
                     .foregroundStyle(value != nil ? .primary : .tertiary)
-
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 13)
@@ -485,10 +496,6 @@ struct BookDetailView: View {
                         .font(.subheadline)
                         .foregroundStyle(Color.accentText)
                 }
-
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 13)
@@ -861,10 +868,10 @@ private struct DatePickerSheet: View {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("취소") { dismiss() }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("선택") {
                         onSave()
                         dismiss()

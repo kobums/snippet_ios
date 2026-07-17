@@ -53,11 +53,11 @@ struct OCRResultView: View {
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("취소") { dismiss() }
                 }
                 if phase == .result {
-                    ToolbarItem(placement: .topBarTrailing) {
+                    ToolbarItem(placement: .confirmationAction) {
                         Button("이 텍스트 사용") {
                             onConfirm(recognizedText)
                             dismiss()
