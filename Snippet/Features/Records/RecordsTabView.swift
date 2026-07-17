@@ -48,24 +48,24 @@ struct RecordsTabView: View {
                 ZStack(alignment: .top) {
                     // 탭 순서 방향으로 밀려 들어오는 전환 — 대시보드·통계 상세와 같은 문법(공간 일관성).
                     // 한 번에 한 뷰만 존재하므로 투명한 List가 터치를 가로채는 문제도 원천 차단된다.
+                    // contentMargins는 각 리스트의 스크롤 뷰에 직접 적용한다 (대시보드와 동일).
+                    // 이 컨테이너에 걸면 environment로 내부 시트까지 전파되어 시트 상단에 공백이 생긴다.
                     ZStack {
                         switch selectedSubTab {
                         case .snippet:
-                            RecordListView(vm: vm, type: .snippet) { Task { await openAddRecord() } }
+                            RecordListView(vm: vm, type: .snippet, topInset: topInset, bottomInset: bottomInset) { Task { await openAddRecord() } }
                                 .transition(.push(from: transitionEdge))
                         case .diary:
-                            RecordListView(vm: vm, type: .diary) { Task { await openAddRecord() } }
+                            RecordListView(vm: vm, type: .diary, topInset: topInset, bottomInset: bottomInset) { Task { await openAddRecord() } }
                                 .transition(.push(from: transitionEdge))
                         case .review:
-                            RecordListView(vm: vm, type: .review) { Task { await openAddRecord() } }
+                            RecordListView(vm: vm, type: .review, topInset: topInset, bottomInset: bottomInset) { Task { await openAddRecord() } }
                                 .transition(.push(from: transitionEdge))
                         case .session:
-                            SessionsListView(vm: vm)
+                            SessionsListView(vm: vm, topInset: topInset, bottomInset: bottomInset)
                                 .transition(.push(from: transitionEdge))
                         }
                     }
-                    .contentMargins(.top, topInset, for: .scrollContent)
-                    .contentMargins(.bottom, bottomInset, for: .scrollContent)
                     .ignoresSafeArea(edges: [.top, .bottom])
 
                     floatingBar
@@ -170,6 +170,9 @@ private struct RecordListView: View {
 
     @Bindable var vm: RecordsViewModel
     let type: RecordType
+    /// 플로팅 바 높이만큼 스크롤 콘텐츠를 내리는 인셋 — 리스트에 직접 적용.
+    var topInset: CGFloat = 0
+    var bottomInset: CGFloat = 0
     /// 빈 상태의 "기록 추가" 액션 — 플로팅 바의 +와 같은 동작.
     var onAdd: () -> Void = {}
 
@@ -261,6 +264,8 @@ private struct RecordListView: View {
                     }
                 }
                 .listStyle(.plain)
+                .contentMargins(.top, topInset, for: .scrollContent)
+                .contentMargins(.bottom, bottomInset, for: .scrollContent)
                 .refreshable {
                     await vm.loadRecords()
                 }
@@ -270,10 +275,6 @@ private struct RecordListView: View {
             EditRecordView(record: record, vm: vm) {
                 editingRecord = nil
             }
-            // 부모(RecordsTabView)의 플로팅 바용 contentMargins가 environment로
-            // 시트 안까지 전파되어 상단에 ~120pt 공백을 만들므로 여기서 차단한다.
-            .contentMargins(.top, 0, for: .scrollContent)
-            .contentMargins(.bottom, 0, for: .scrollContent)
         }
         .alert("이 기록을 삭제하시겠습니까?", isPresented: $showDeleteAlert) {
             Button("삭제", role: .destructive) {
@@ -293,10 +294,6 @@ private struct RecordListView: View {
                 deleteTarget = nil
             }
         }
-        .alert("삭제 실패", isPresented: $showDeleteError) {
-            Button("확인", role: .cancel) {}
-        } message: {
-            Text("삭제 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
-        }
+        .deleteFailureAlert(isPresented: $showDeleteError)
     }
 }

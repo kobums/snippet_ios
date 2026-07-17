@@ -7,6 +7,9 @@ import SwiftUI
 struct SessionsListView: View {
 
     @Bindable var vm: RecordsViewModel
+    /// 플로팅 바 높이만큼 스크롤 콘텐츠를 내리는 인셋 — 리스트에 직접 적용.
+    var topInset: CGFloat = 0
+    var bottomInset: CGFloat = 0
 
     @State private var selectedSession: ReadingSessionDto?
     @State private var selectedBookTitle: String = ""
@@ -69,6 +72,8 @@ struct SessionsListView: View {
                     }
                 }
                 .listStyle(.plain)
+                .contentMargins(.top, topInset, for: .scrollContent)
+                .contentMargins(.bottom, bottomInset, for: .scrollContent)
                 .refreshable {
                     await vm.loadSessions()
                 }
