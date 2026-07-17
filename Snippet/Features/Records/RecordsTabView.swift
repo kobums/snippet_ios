@@ -176,6 +176,7 @@ private struct RecordListView: View {
     @State private var editingRecord: RecordDto? = nil
     @State private var deleteTarget: RecordDto? = nil
     @State private var showDeleteAlert = false
+    @State private var showDeleteError = false
 
     private var grouped: [(groupId: Int, bookTitle: String, records: [RecordDto])] {
         vm.groupedRecords(for: type)
@@ -274,7 +275,12 @@ private struct RecordListView: View {
             Button("삭제", role: .destructive) {
                 if let target = deleteTarget {
                     Task {
-                        await vm.deleteRecord(id: target.id)
+                        if await vm.deleteRecord(id: target.id) {
+                            Haptics.success()
+                        } else {
+                            Haptics.error()
+                            showDeleteError = true
+                        }
                         deleteTarget = nil
                     }
                 }
@@ -282,6 +288,11 @@ private struct RecordListView: View {
             Button("취소", role: .cancel) {
                 deleteTarget = nil
             }
+        }
+        .alert("삭제 실패", isPresented: $showDeleteError) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text("삭제 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
         }
     }
 }

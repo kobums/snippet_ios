@@ -196,7 +196,12 @@ final class LibraryViewModel {
 
     @discardableResult
     func addBook(_ request: LibraryAddRequest) async -> Bool {
-        _ = try? await userBookService.add(request)
+        do {
+            _ = try await userBookService.add(request)
+        } catch {
+            // 실패를 호출부에 알려 성공 피드백이 거짓으로 나가지 않게 한다.
+            return false
+        }
         await loadAllTabs()
         return true
     }
@@ -218,7 +223,12 @@ final class LibraryViewModel {
 
     @discardableResult
     func deleteBook(id: Int) async -> Bool {
-        _ = try? await userBookService.delete(id: id)
+        do {
+            try await userBookService.delete(id: id)
+        } catch {
+            // 실패를 호출부에 알려 사용자가 "삭제됐다"고 오인하지 않게 한다.
+            return false
+        }
         await loadAllTabs()
         return true
     }

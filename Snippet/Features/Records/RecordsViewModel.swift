@@ -106,7 +106,11 @@ final class RecordsViewModel {
 
     @discardableResult
     func addRecord(_ request: RecordAddRequest) async -> Bool {
-        let _ = try? await recordService.add(request)
+        do {
+            _ = try await recordService.add(request)
+        } catch {
+            return false
+        }
         await loadRecords()
         return true
     }
@@ -127,8 +131,12 @@ final class RecordsViewModel {
 
     @discardableResult
     func deleteRecord(id: Int) async -> Bool {
-        // delete() throws Void — try? returns Optional<Void>, () on success, nil on throw
-        _ = try? await recordService.delete(id: id)
+        do {
+            try await recordService.delete(id: id)
+        } catch {
+            // 실패를 호출부에 알려 사용자가 "삭제됐다"고 오인하지 않게 한다.
+            return false
+        }
         await loadRecords()
         return true
     }

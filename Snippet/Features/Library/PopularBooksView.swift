@@ -403,9 +403,13 @@ private struct AddPopularBookSheet: View {
                             endDate: selectedStatus == .completed ? dateStr : "",
                             createDate: dateStr
                         )
-                        Haptics.success()
                         Task {
-                            _ = await viewModel.addBook(request)
+                            // 피드백은 실제 결과가 나온 뒤에 — 성공을 미리 알리지 않는다.
+                            if await viewModel.addBook(request) {
+                                Haptics.success()
+                            } else {
+                                Haptics.error()
+                            }
                         }
                         onComplete()
                         dismiss()
