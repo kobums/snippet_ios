@@ -270,6 +270,10 @@ private struct RecordListView: View {
             EditRecordView(record: record, vm: vm) {
                 editingRecord = nil
             }
+            // 부모(RecordsTabView)의 플로팅 바용 contentMargins가 environment로
+            // 시트 안까지 전파되어 상단에 ~120pt 공백을 만들므로 여기서 차단한다.
+            .contentMargins(.top, 0, for: .scrollContent)
+            .contentMargins(.bottom, 0, for: .scrollContent)
         }
         .alert("이 기록을 삭제하시겠습니까?", isPresented: $showDeleteAlert) {
             Button("삭제", role: .destructive) {

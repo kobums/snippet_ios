@@ -29,6 +29,7 @@ struct AddRecordView: View {
     @State private var pageText: String = ""
 
     @State private var isSaving = false
+    @State private var showDiscardDialog = false
     @State private var errorMessage: String? = nil
     @State private var showError = false
 
@@ -67,28 +68,50 @@ struct AddRecordView: View {
         return !bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// 진입 시점 대비 입력 변경 여부 — 취소/스와이프 시 폐기 확인에 사용.
+    private var isDirty: Bool {
+        bodyText != initialText || !tagText.isEmpty || !pageText.isEmpty
+    }
+
     var body: some View {
         NavigationStack {
             formContent
                 .navigationTitle("\(selectedType.label) 추가")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button("취소") { dismiss() }
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("취소") {
+                            if isDirty {
+                                showDiscardDialog = true
+                            } else {
+                                dismiss()
+                            }
+                        }
+                        .disabled(isSaving)
                     }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        if isSaving {
-                            ProgressView().scaleEffect(0.8)
-                        } else {
-                            Button {
-                                Task { await save() }
-                            } label: {
-                                Image(systemName: "checkmark")
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button {
+                            Task { await save() }
+                        } label: {
+                            if isSaving {
+                                ProgressView()
+                            } else {
+                                Text("저장")
                                     .fontWeight(.semibold)
                             }
-                            .disabled(!isFormValid)
                         }
+                        .disabled(!isFormValid || isSaving)
                     }
+                }
+                // 작성 중인 내용이 있으면 시트 스와이프 닫기를 막고 폐기 확인을 거치게 한다.
+                .interactiveDismissDisabled(isDirty)
+                .confirmationDialog(
+                    "작성 중인 내용을 폐기하시겠습니까?",
+                    isPresented: $showDiscardDialog,
+                    titleVisibility: .visible
+                ) {
+                    Button("내용 폐기", role: .destructive) { dismiss() }
+                    Button("계속 작성", role: .cancel) {}
                 }
                 .alert("저장 실패", isPresented: $showError) {
                     Button("확인", role: .cancel) {}
@@ -228,7 +251,7 @@ struct AddRecordView: View {
 
     private var contentSectionView: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("내용 *")
+            sectionHeader("내용")
 
             VStack(spacing: 0) {
                 ocrButton
@@ -276,9 +299,6 @@ struct AddRecordView: View {
                     .font(.subheadline)
                     .foregroundStyle(Color.accentText)
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
             }
         }
         .confirmationDialog("텍스트 추출 방식 선택", isPresented: $showOCRSourceDialog, titleVisibility: .visible) {
