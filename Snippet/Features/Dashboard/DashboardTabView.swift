@@ -127,10 +127,7 @@ private struct DashboardStatsSection: View {
     @Bindable var vm: DashboardViewModel
     let topInset: CGFloat
     let bottomInset: CGFloat
-    @State private var showGoalDialog = false
-    @State private var goalInput = ""
     @State private var navigateToCalendar = false
-    @State private var navigateToStats = false
     // 완독한 책 탭 → BookDetailView 이동용 (BookDetailView가 LibraryViewModel을 요구)
     @State private var libraryVM = LibraryViewModel()
     /// 책 행 → 책 상세 줌 전환 네임스페이스.
