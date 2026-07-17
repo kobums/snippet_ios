@@ -13,12 +13,9 @@ struct LibraryTabView: View {
 
     /// 스와이프 삭제 공통 처리 — 실패 시 사용자에게 알린다.
     private func deleteBook(id: Int) async {
-        if await viewModel.deleteBook(id: id) {
-            Haptics.success()
-        } else {
-            Haptics.error()
-            showDeleteError = true
-        }
+        let deleted = await viewModel.deleteBook(id: id)
+        Haptics.notify(success: deleted)
+        if !deleted { showDeleteError = true }
     }
 
     var body: some View {
@@ -43,11 +40,7 @@ struct LibraryTabView: View {
             .sheet(isPresented: $showPopularBooks) {
                 PopularBooksView(viewModel: viewModel)
             }
-            .alert("삭제 실패", isPresented: $showDeleteError) {
-                Button("확인", role: .cancel) {}
-            } message: {
-                Text("삭제 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
-            }
+            .deleteFailureAlert(isPresented: $showDeleteError)
         }
         .task {
             await viewModel.loadAllTabs()
@@ -100,9 +93,7 @@ struct LibraryTabView: View {
                         error: viewModel.haveError,
                         onRefresh: { await viewModel.loadHave(refresh: true) },
                         onLoadMore: { await viewModel.loadMoreIfNeeded(for: .have) },
-                        onDelete: { id in
-                            await deleteBook(id: id)
-                        },
+                        onDelete: deleteBook(id:),
                         onUpdate: { id, req in
                             _ = await viewModel.updateBook(id: id, request: req)
                         },
@@ -118,9 +109,7 @@ struct LibraryTabView: View {
                         error: viewModel.borrowError,
                         onRefresh: { await viewModel.loadBorrow(refresh: true) },
                         onLoadMore: { await viewModel.loadMoreIfNeeded(for: .borrow) },
-                        onDelete: { id in
-                            await deleteBook(id: id)
-                        },
+                        onDelete: deleteBook(id:),
                         onUpdate: { id, req in
                             _ = await viewModel.updateBook(id: id, request: req)
                         },
@@ -136,9 +125,7 @@ struct LibraryTabView: View {
                         error: viewModel.wishError,
                         onRefresh: { await viewModel.loadWish(refresh: true) },
                         onLoadMore: { await viewModel.loadMoreIfNeeded(for: .wish) },
-                        onDelete: { id in
-                            await deleteBook(id: id)
-                        },
+                        onDelete: deleteBook(id:),
                         onUpdate: { id, req in
                             _ = await viewModel.updateBook(id: id, request: req)
                         },

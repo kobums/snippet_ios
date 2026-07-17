@@ -41,4 +41,9 @@ enum Haptics {
     static func error() {
         UINotificationFeedbackGenerator().notificationOccurred(.error)
     }
+
+    /// 비동기 작업 결과를 그대로 알릴 때 — 성공/실패 분기를 호출부마다 반복하지 않는다.
+    static func notify(success: Bool) {
+        success ? Haptics.success() : Haptics.error()
+    }
 }

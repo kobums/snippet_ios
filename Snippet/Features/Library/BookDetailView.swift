@@ -127,11 +127,7 @@ struct BookDetailView: View {
         } message: {
             Text("'\(localBook.title)'을(를) 서재에서 삭제하시겠습니까?")
         }
-        .alert("삭제 실패", isPresented: $showDeleteError) {
-            Button("확인", role: .cancel) {}
-        } message: {
-            Text("삭제 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
-        }
+        .deleteFailureAlert(isPresented: $showDeleteError)
         .sheet(isPresented: $showRatingSheet) {
             RatingSheet(
                 bookTitle: localBook.title,
