@@ -426,6 +426,8 @@ struct BookDetailView: View {
                     }
                     showReturnDatePicker = true
                 }
+                rowDivider
+                extendReturnRow
             }
 
             if localBook.status == .completed {
@@ -498,6 +500,38 @@ struct BookDetailView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    /// 반납 연기 행 — 탭 한 번으로 반납 예정일을 1주일 미룬다 (날짜 직접 수정은 위의 반납 예정일 행).
+    private var extendReturnRow: some View {
+        Button {
+            Task { await extendReturnDate() }
+        } label: {
+            HStack(spacing: 8) {
+                Text("반납 연기")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text("+1주일")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.accentText)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isSaving || localBook.returnDate == nil)
+    }
+
+    /// 반납 예정일을 1주일 연장한다. (반납일은 생성/전환 시점에 항상 채워지므로 미설정이면 아무 것도 안 함)
+    private func extendReturnDate() async {
+        guard let base = localBook.returnDate
+            .flatMap({ APIDate.parseDay(String($0.prefix(10))) }) else { return }
+        await saveUpdate(.init(returnDate: APIDate.dayString(from: base.addingTimeInterval(60 * 60 * 24 * 7))))
+        Haptics.success()
     }
 
     private var ddayBadge: (text: String, color: Color)? {
