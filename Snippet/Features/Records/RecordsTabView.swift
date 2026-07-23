@@ -181,6 +181,11 @@ private struct RecordListView: View {
     @State private var showDeleteAlert = false
     @State private var showDeleteError = false
 
+    // 책 그룹 헤더 → BookDetailView 이동용 (bookId → 서재 목록 매칭)
+    @State private var detailBook: UserBookDto? = nil
+    @State private var libraryVM = LibraryViewModel()
+    private let userBookService = UserBookService()
+
     private var grouped: [(groupId: Int, bookTitle: String, records: [RecordDto])] {
         vm.groupedRecords(for: type)
     }
@@ -232,12 +237,18 @@ private struct RecordListView: View {
                     // 책별 그룹 — 표지 + 세리프 제목 헤더
                     ForEach(grouped, id: \.groupId) { group in
                         Section {
-                            RecordBookGroupHeader(
-                                title: group.bookTitle,
-                                author: group.records.first?.bookAuthor,
-                                coverUrl: group.records.first?.bookCoverUrl,
-                                count: group.records.count
-                            )
+                            // 그룹 헤더 탭 → 책 상세 (bookId로 서재에서 찾아 이동)
+                            Button {
+                                Task { await openBookDetail(bookId: group.groupId) }
+                            } label: {
+                                RecordBookGroupHeader(
+                                    title: group.bookTitle,
+                                    author: group.records.first?.bookAuthor,
+                                    coverUrl: group.records.first?.bookCoverUrl,
+                                    count: group.records.count
+                                )
+                            }
+                            .buttonStyle(.pressable)
                             .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
                             .listRowSeparator(.hidden)
 
@@ -276,6 +287,9 @@ private struct RecordListView: View {
                 editingRecord = nil
             }
         }
+        .navigationDestination(item: $detailBook) { book in
+            BookDetailView(userBook: book, viewModel: libraryVM)
+        }
         .alert("이 기록을 삭제하시겠습니까?", isPresented: $showDeleteAlert) {
             Button("삭제", role: .destructive) {
                 if let target = deleteTarget {
@@ -295,5 +309,12 @@ private struct RecordListView: View {
             }
         }
         .deleteFailureAlert(isPresented: $showDeleteError)
+    }
+
+    /// 그룹 헤더의 bookId로 서재 목록에서 UserBookDto를 찾아 상세로 이동한다.
+    private func openBookDetail(bookId: Int) async {
+        let books = (try? await userBookService.fetchPaged(page: 0, size: 200)) ?? []
+        guard let book = books.first(where: { $0.bookId == bookId }) else { return }
+        detailBook = book
     }
 }

@@ -2,7 +2,7 @@ import Foundation
 
 /// 사용자 서재 도서 (UserBookDto, 문서 §3.3).
 /// 날짜 필드는 전부 String 보관 — 표시 시점에 `APIDate`로 파싱한다.
-struct UserBookDto: Codable, Identifiable, Equatable, Sendable {
+struct UserBookDto: Codable, Identifiable, Equatable, Hashable, Sendable {
     let id: Int
     let bookId: Int
     let title: String

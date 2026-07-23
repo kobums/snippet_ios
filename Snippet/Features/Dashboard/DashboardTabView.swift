@@ -890,7 +890,7 @@ private struct DayCell: View {
         .buttonStyle(.plain)
         .sheet(isPresented: $showCompletedDialog) {
             CompletedBooksSheet(books: books)
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
     }
@@ -902,28 +902,34 @@ private struct CompletedBooksSheet: View {
 
     let books: [UserBookDto]
     @Environment(\.dismiss) private var dismiss
+    // 책 행 → BookDetailView 이동용
+    @State private var libraryVM = LibraryViewModel()
 
     var body: some View {
         NavigationStack {
             List(books) { book in
-                HStack(spacing: 12) {
-                    AsyncImage(url: URL(string: book.coverUrl)) { phase in
-                        if case .success(let img) = phase {
-                            img.resizable().scaledToFill()
-                        } else {
-                            Color(.secondarySystemBackground)
+                NavigationLink {
+                    BookDetailView(userBook: book, viewModel: libraryVM)
+                } label: {
+                    HStack(spacing: 12) {
+                        AsyncImage(url: URL(string: book.coverUrl)) { phase in
+                            if case .success(let img) = phase {
+                                img.resizable().scaledToFill()
+                            } else {
+                                Color(.secondarySystemBackground)
+                            }
                         }
-                    }
-                    .frame(width: 40, height: 60)
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .frame(width: 40, height: 60)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(book.title)
-                            .font(.subheadline.weight(.medium))
-                            .lineLimit(2)
-                        Text(book.author)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(book.title)
+                                .font(.subheadline.weight(.medium))
+                                .lineLimit(2)
+                            Text(book.author)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }

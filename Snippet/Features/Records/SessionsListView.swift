@@ -14,6 +14,11 @@ struct SessionsListView: View {
     @State private var selectedSession: ReadingSessionDto?
     @State private var selectedBookTitle: String = ""
 
+    // 책 그룹 헤더 → BookDetailView 이동용 (userBookId 단건 조회)
+    @State private var detailBook: UserBookDto? = nil
+    @State private var libraryVM = LibraryViewModel()
+    private let userBookService = UserBookService()
+
     var body: some View {
         Group {
             if vm.isLoadingSessions {
@@ -47,12 +52,18 @@ struct SessionsListView: View {
                     // 책별 그룹 — 표지 + 세리프 제목 헤더 (기록 목록과 같은 문법)
                     ForEach(vm.groupedSessions, id: \.groupId) { group in
                         Section {
-                            RecordBookGroupHeader(
-                                title: group.bookTitle,
-                                author: group.sessions.first?.bookAuthor,
-                                coverUrl: group.sessions.first?.bookCoverUrl,
-                                count: group.sessions.count
-                            )
+                            // 그룹 헤더 탭 → 책 상세 (userBookId 단건 조회 후 이동)
+                            Button {
+                                Task { await openBookDetail(userBookId: group.groupId) }
+                            } label: {
+                                RecordBookGroupHeader(
+                                    title: group.bookTitle,
+                                    author: group.sessions.first?.bookAuthor,
+                                    coverUrl: group.sessions.first?.bookCoverUrl,
+                                    count: group.sessions.count
+                                )
+                            }
+                            .buttonStyle(.pressable)
                             .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
                             .listRowSeparator(.hidden)
 
@@ -84,6 +95,15 @@ struct SessionsListView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
+        .navigationDestination(item: $detailBook) { book in
+            BookDetailView(userBook: book, viewModel: libraryVM)
+        }
+    }
+
+    /// 그룹 헤더의 userBookId로 단건 조회 후 상세로 이동한다.
+    private func openBookDetail(userBookId: Int) async {
+        guard let book = try? await userBookService.fetch(id: userBookId) else { return }
+        detailBook = book
     }
 }
 

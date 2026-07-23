@@ -20,6 +20,11 @@ struct ReadingCalendarView: View {
     /// 공유 이미지에 통계(완독 권수·총 페이지) 오버레이 표시 여부.
     @State private var showStats = false
 
+    // 책 행 → BookDetailView 이동용
+    @State private var libraryVM = LibraryViewModel()
+    /// 책 행 → 책 상세 줌 전환 네임스페이스.
+    @Namespace private var bookZoom
+
     private let userBookService = UserBookService()
 
     @Environment(\.colorScheme) private var colorScheme
@@ -56,8 +61,14 @@ struct ReadingCalendarView: View {
                         SectionHeaderView(title: "이번 달 완독 (\(completed.count)권)")
                             .padding(.horizontal, 16)
                         ForEach(completed) { book in
-                            BookRowView(book: book)
-                                .padding(.horizontal, 16)
+                            NavigationLink {
+                                BookDetailView(userBook: book, viewModel: libraryVM)
+                                    .navigationTransition(.zoom(sourceID: book.id, in: bookZoom))
+                            } label: {
+                                BookRowView(book: book, zoomNamespace: bookZoom)
+                                    .padding(.horizontal, 16)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -244,6 +255,8 @@ private struct LargeDayCell: View {
     let isToday: Bool
 
     @State private var showSheet = false
+    // 시트 내 책 행 → BookDetailView 이동용
+    @State private var libraryVM = LibraryViewModel()
 
     var body: some View {
         Button {
@@ -354,19 +367,23 @@ private struct LargeDayCell: View {
         Group {
             NavigationStack {
                 List(books) { book in
-                    HStack(spacing: 12) {
-                        AsyncImage(url: URL(string: book.coverUrl)) { phase in
-                            if case .success(let img) = phase {
-                                img.resizable().scaledToFill()
-                            } else {
-                                Color(.secondarySystemBackground)
+                    NavigationLink {
+                        BookDetailView(userBook: book, viewModel: libraryVM)
+                    } label: {
+                        HStack(spacing: 12) {
+                            AsyncImage(url: URL(string: book.coverUrl)) { phase in
+                                if case .success(let img) = phase {
+                                    img.resizable().scaledToFill()
+                                } else {
+                                    Color(.secondarySystemBackground)
+                                }
                             }
-                        }
-                        .frame(width: 40, height: 60)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(book.title).font(.subheadline.weight(.medium)).lineLimit(2)
-                            Text(book.author).font(.caption).foregroundStyle(.secondary)
+                            .frame(width: 40, height: 60)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(book.title).font(.subheadline.weight(.medium)).lineLimit(2)
+                                Text(book.author).font(.caption).foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
@@ -379,7 +396,7 @@ private struct LargeDayCell: View {
                     }
                 }
             }
-            .presentationDetents([.medium])
+            .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
     }
