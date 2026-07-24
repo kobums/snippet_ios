@@ -7,7 +7,9 @@ struct SuggestionDto: Codable, Identifiable, Equatable, Sendable {
     let title: String?
     let content: String
     let status: String
-    let createDate: String   // ISO LocalDateTime
+    let createDate: String    // ISO LocalDateTime
+    let answer: String?       // 관리자 답변 (미답변 시 null)
+    let answerDate: String?   // ISO LocalDateTime, null 가능
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -17,6 +19,8 @@ struct SuggestionDto: Codable, Identifiable, Equatable, Sendable {
         content = try c.decodeIfPresent(String.self, forKey: .content) ?? ""
         status = try c.decodeIfPresent(String.self, forKey: .status) ?? ""
         createDate = try c.decodeIfPresent(String.self, forKey: .createDate) ?? ""
+        answer = try c.decodeIfPresent(String.self, forKey: .answer)
+        answerDate = try c.decodeIfPresent(String.self, forKey: .answerDate)
     }
 }
 

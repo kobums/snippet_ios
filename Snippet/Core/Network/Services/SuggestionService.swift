@@ -18,7 +18,7 @@ struct SuggestionService: Sendable {
         )
     }
 
-    /// GET /suggestions/mine — 내 건의 목록 (앱 미사용, 백엔드 존재).
+    /// GET /suggestions/mine — 내 건의 목록 (관리자 답변 포함).
     func mine() async throws -> [SuggestionDto] {
         try await client.request(Endpoint(.get, "/suggestions/mine"))
     }
