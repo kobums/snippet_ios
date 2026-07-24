@@ -1,7 +1,7 @@
 import Foundation
 
 /// 건의 응답 (POST /suggestions, GET /suggestions/mine).
-struct SuggestionDto: Codable, Identifiable, Equatable, Sendable {
+struct SuggestionDto: Codable, Identifiable, Hashable, Sendable {
     let id: Int
     let category: String
     let title: String?
