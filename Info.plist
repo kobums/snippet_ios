@@ -22,19 +22,6 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>UILaunchScreen</key>
-	<dict/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-	</array>
-	<!-- 세로 전용 앱 — iPad 멀티태스킹(Split View/Slide Over) opt-out.
-	     이로써 iPad에서도 세로 전용을 유지하면서 4방향 지원 요구(90474)를 면제받음. -->
-	<key>UIRequiresFullScreen</key>
-	<true/>
-	<!-- 개발용 로컬 서버(http://10.0.1.14:8008) 통신 허용. 스토어 제출 전 도메인 예외로 좁힐 것. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
@@ -44,8 +31,21 @@
 	<string>책의 문장을 카메라로 촬영해 텍스트로 인식하기 위해 카메라를 사용합니다.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>책 문장 이미지를 불러와 텍스트로 인식하기 위해 사진 보관함에 접근합니다.</string>
-	<!-- 독서 세션 Live Activity (잠금화면/다이나믹 아일랜드 타이머) 지원 -->
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UIRequiresFullScreen</key>
+	<true/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
 </dict>
 </plist>
