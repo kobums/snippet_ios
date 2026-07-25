@@ -25,6 +25,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             FirebaseApp.configure()
         }
         #endif
+        // configure() 직후 Firebase가 캐시된 토큰으로 등록 콜백을 1회 발화하므로,
+        // 델리게이트는 반드시 여기서 선점해야 한다. Task로 미루면 그 발화를 놓친다.
+        MainActor.assumeIsolated {
+            PushNotificationManager.shared.configureDelegates()
+        }
         return true
     }
 

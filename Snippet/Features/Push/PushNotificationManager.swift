@@ -24,16 +24,30 @@ final class PushNotificationManager: NSObject {
         super.init()
     }
 
+    // MARK: - 델리게이트 선점
+
+    /// 앱 시작 직후(`AppDelegate.didFinishLaunchingWithOptions`)에 호출한다.
+    ///
+    /// `FirebaseApp.configure()` 직후 Firebase는 캐시된 등록 토큰으로
+    /// `messaging(_:didReceiveRegistrationToken:)`을 **한 번** 발화한다.
+    /// 델리게이트를 로그인 이후에 대입하면 이 발화를 놓치고, 토큰이 갱신되기
+    /// 전까지 콜백이 다시 오지 않아 서버 등록이 영구히 누락된다.
+    /// 콜드 스타트 알림 탭 처리를 위해 UNUserNotificationCenter 델리게이트도 함께 선점한다.
+    func configureDelegates() {
+        UNUserNotificationCenter.current().delegate = self
+        #if canImport(FirebaseMessaging)
+        Messaging.messaging().delegate = self
+        #endif
+    }
+
     // MARK: - 권한 요청 + APNs 등록
 
     /// 앱 초기화 완료 직후(또는 로그인 성공 직후) 호출.
     /// UNUserNotificationCenter 권한을 요청하고, 허용 시 APNs 등록을 트리거한다.
     func requestPermissionAndRegister() {
+        // 멱등 — AppDelegate에서 이미 선점했더라도 다시 대입해 안전하게 보장한다.
+        configureDelegates()
         let center = UNUserNotificationCenter.current()
-        center.delegate = self
-        #if canImport(FirebaseMessaging)
-        Messaging.messaging().delegate = self
-        #endif
         center.requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
             if let error {
                 print("[Push] 권한 요청 오류: \(error.localizedDescription)")
@@ -64,8 +78,12 @@ final class PushNotificationManager: NSObject {
         #endif
 
         #if canImport(FirebaseMessaging)
-        // FCM: APNs 토큰을 Firebase에 전달 → FCM 등록 토큰은 messaging(_:didReceiveRegistrationToken:)에서 서버 전송
+        // FCM: APNs 토큰을 Firebase에 전달.
         Messaging.messaging().apnsToken = deviceToken
+        // 델리게이트 콜백은 토큰이 *변경*될 때만 발화하므로, 이미 발급된 토큰은
+        // 여기서 능동 조회해야 서버에 반영된다. APNs 토큰 대입 직후라 조회가 안전하다.
+        // (Android `FcmTokenManager.registerCurrentToken()`과 동일한 역할)
+        syncCurrentToken()
         #else
         // 폴백: APNs 토큰을 직접 서버에 등록
         Task {
@@ -79,15 +97,39 @@ final class PushNotificationManager: NSObject {
         print("[Push] APNs 등록 실패: \(error.localizedDescription)")
     }
 
+    // MARK: - 능동 토큰 조회
+
+    /// 현재 FCM 등록 토큰을 조회해 서버에 등록한다.
+    ///
+    /// `messaging(_:didReceiveRegistrationToken:)`은 토큰이 **새로 발급/갱신될 때만** 호출된다.
+    /// 재실행처럼 토큰이 그대로인 경우 콜백이 오지 않으므로, 이 경로가 없으면
+    /// 서버의 `u_fcmtoken`이 영구히 비어 있게 된다.
+    func syncCurrentToken() {
+        #if canImport(FirebaseMessaging)
+        Messaging.messaging().token { [weak self] token, error in
+            if let error {
+                print("[Push] FCM 토큰 조회 실패: \(error.localizedDescription)")
+                return
+            }
+            guard let token else { return }
+            Task { @MainActor in
+                await self?.registerTokenWithServer(token)
+            }
+        }
+        #endif
+    }
+
     // MARK: - 서버 토큰 등록
 
-    /// POST /users/fcmtoken — 실패는 무시 (문서 §2 호출 시점 규칙).
-    ///
-    /// ## Firebase 전환 지점
-    /// Firebase SDK 추가 후 이 메서드는 `messaging(_:didReceiveRegistrationToken:)` 델리게이트
-    /// 메서드 내에서 호출해야 한다. fcmToken 파라미터를 APNs 토큰 대신 FCM 등록 토큰으로 교체.
+    /// POST /users/fcmtoken — 실패해도 앱 동작은 막지 않되, 원인 추적을 위해 로그는 남긴다.
+    /// (기존에는 `try?`로 삼켜서 "전송 실패"와 "전송 시도 자체가 없음"이 구분되지 않았다.)
     private func registerTokenWithServer(_ token: String) async {
-        try? await userService.registerFCMToken(token)
+        do {
+            try await userService.registerFCMToken(token)
+            print("[Push] FCM 토큰 서버 등록 성공")
+        } catch {
+            print("[Push] FCM 토큰 서버 등록 실패: \(error)")
+        }
     }
 }
 
