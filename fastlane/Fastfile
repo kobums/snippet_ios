@@ -353,6 +353,48 @@ platform :ios do
   end
 
   # -------------------------------------------------------
+  # 이미 TestFlight에 올라간 빌드를 그대로 App Store 심사에 제출.
+  # 버전 bump·재빌드 없음 — beta/ship으로 올린 빌드를 그대로 쓸 때 사용한다.
+  # (release 레인은 항상 patch를 올리고 새로 빌드하므로 이 경우엔 쓸 수 없다)
+  # 사용법: cd snippet_ios && fastlane submit            # pbxproj의 현재 버전
+  #        cd snippet_ios && fastlane submit version:1.0.29
+  # -------------------------------------------------------
+  desc "이미 업로드된 빌드를 App Store 심사에 제출 (bump·빌드 없음)"
+  lane :submit do |options|
+    key     = api_key
+    version = options[:version] || current_marketing_version
+
+    meta_path = sync_release_notes(version)
+    puts "📦 심사 제출 대상: #{version} (바이너리 재업로드 없음)"
+
+    upload_to_app_store(
+      api_key: key,
+      skip_binary_upload: true,
+      app_version: version,
+      metadata_path: meta_path,
+      skip_screenshots: true,
+      skip_metadata: false,
+      run_precheck_before_submit: false,
+      submit_for_review: true,
+      reject_if_possible: true,
+      automatic_release: true,
+      force: true,
+      submission_information: {
+        export_compliance_uses_encryption: false,
+        add_id_info_uses_idfa: false
+      }
+    )
+
+    if system("git", "-C", project_root, "tag", "v#{version}")
+      puts "🏷️  git tag v#{version} 생성 (다음 릴리즈 노트 범위 기준)"
+    else
+      UI.important("git tag v#{version} 생성 실패 — 수동으로 태그를 만들어주세요.")
+    end
+
+    puts "✅ v#{version} App Store 심사 제출 완료!"
+  end
+
+  # -------------------------------------------------------
   # 프로모션 텍스트만 업데이트 (빌드/심사 없이 즉시 반영)
   # 수정 파일: fastlane/metadata/ko/promotional_text.txt
   # 사용법: cd snippet_ios && fastlane promo
