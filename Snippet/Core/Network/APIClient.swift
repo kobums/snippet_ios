@@ -141,6 +141,10 @@ final class APIClient: Sendable {
         if let contentType = endpoint.contentType {
             request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
+        // 서버가 요청 단위로 클라이언트 버전을 식별할 수 있도록 항상 전송
+        // (구버전 로깅 및 향후 서버측 차단 백스톱용).
+        request.setValue(AppVersionInfo.current, forHTTPHeaderField: "X-App-Version")
+        request.setValue("ios", forHTTPHeaderField: "X-App-Platform")
         // 토큰이 있으면 Bearer 주입, 없으면 헤더 없이 전송 (스니펫 카드 비로그인 허용)
         if let token = tokenStore.accessToken() {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
