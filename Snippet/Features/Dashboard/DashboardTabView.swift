@@ -60,7 +60,8 @@ struct DashboardTabView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .onChange(of: vm.selectedYear) { _, _ in
-                Task { await vm.changeMonth(year: vm.selectedYear, month: vm.selectedMonth) }
+                // 연도가 바뀌면 연도 스코프 통계(월별 차트/카테고리)도 함께 갱신해야 한다.
+                Task { await vm.changeYear() }
             }
             .onChange(of: vm.selectedMonth) { _, _ in
                 Task { await vm.changeMonth(year: vm.selectedYear, month: vm.selectedMonth) }

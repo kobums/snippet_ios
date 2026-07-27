@@ -80,6 +80,15 @@ final class DashboardViewModel {
         await loadMonthlyData()
     }
 
+    /// 연도 변경 — 월 데이터와 함께 연도 스코프 통계(월별 차트/카테고리/인사이트)도 갱신.
+    /// (loadMonthlyData만 호출하면 월별 완독 현황·카테고리 도넛이 이전 연도 데이터로 남는다)
+    func changeYear() async {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await self.loadMonthlyData() }
+            group.addTask { await self.loadStatsData() }
+        }
+    }
+
     func updateGoal(targetBooks: Int) async {
         let year = Calendar.current.component(.year, from: .now)
         if let updated = try? await goalService.update(year: year, targetBooks: targetBooks) {
