@@ -118,19 +118,27 @@ final class LibraryViewModel {
         self[keyPath: error] = nil
         defer { self[keyPath: isLoading] = false }
 
-        let result = try? await userBookService.fetchPaged(page: self[keyPath: page], size: pageSize)
-        let raw = result ?? []
-        let filtered = raw.filter { $0.type == type }
-        if self[keyPath: page] == 0 {
-            self[keyPath: books] = filtered
-        } else {
-            self[keyPath: books].append(contentsOf: filtered)
+        // API는 타입 무관 페이지를 내려주므로 한 페이지에 해당 타입이 0건일 수 있다.
+        // 그 경우 리스트가 안 자라 onAppear 트리거가 다시 걸리지 않고 무한 스크롤이
+        // 조기 종료되므로, 최소 1건을 확보하거나 페이지가 소진될 때까지 계속 당긴다.
+        while true {
+            let result = try? await userBookService.fetchPaged(page: self[keyPath: page], size: pageSize)
+            guard let raw = result else {
+                self[keyPath: error] = errorMessage
+                return
+            }
+            let filtered = raw.filter { $0.type == type }
+            if self[keyPath: page] == 0 {
+                self[keyPath: books] = filtered
+            } else {
+                self[keyPath: books].append(contentsOf: filtered)
+            }
+            // hasMore/page 전진은 API 페이지(raw)의 채움 여부로 판단해야 한다.
+            // 타입 필터링된 개수로 판단하면 page 0 이후 페이지네이션이 멈춘다.
+            if raw.count < pageSize { self[keyPath: hasMore] = false }
+            else { self[keyPath: page] += 1 }
+            if !filtered.isEmpty || !self[keyPath: hasMore] { return }
         }
-        // hasMore/page 전진은 API 페이지(raw)의 채움 여부로 판단해야 한다.
-        // 타입 필터링된 개수로 판단하면 page 0 이후 페이지네이션이 멈춘다.
-        if raw.count < pageSize { self[keyPath: hasMore] = false }
-        else { self[keyPath: page] += 1 }
-        if result == nil { self[keyPath: error] = errorMessage }
     }
 
     func loadHave(refresh: Bool = false) async {
