@@ -71,14 +71,22 @@ final class RecordsViewModel {
 
     // MARK: - 로드 메서드
 
+    /// 월 이동 연타 시 늦게 도착한 이전 달 응답이 현재 달 화면을 덮어쓰지 않도록
+    /// 세대 토큰으로 최신 요청만 상태에 반영한다. (@MainActor라 증가/비교는 직렬화됨)
+    private var recordsLoadID = 0
+
     func loadRecords() async {
+        recordsLoadID += 1
+        let loadID = recordsLoadID
         isLoadingRecords = true
         recordsError = nil
-        defer { isLoadingRecords = false }
         let result = try? await recordService.fetchMonthly(
             year: selectedYear,
             month: selectedMonth
         )
+        // 스테일 응답이면 버린다. isLoading 해제는 최신 요청이 담당한다.
+        guard loadID == recordsLoadID else { return }
+        isLoadingRecords = false
         monthlyRecords = result ?? []
         if result == nil {
             recordsError = "기록을 불러올 수 없습니다"

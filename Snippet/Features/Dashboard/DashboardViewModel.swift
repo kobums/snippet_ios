@@ -124,20 +124,32 @@ final class DashboardViewModel {
 
     // MARK: 비공개 로드 메서드
 
+    // 월 이동 연타 시 늦게 도착한 이전 요청 응답이 현재 화면을 덮어쓰지 않도록
+    // 세대 토큰으로 최신 요청만 상태에 반영한다. (@MainActor라 증가/비교는 직렬화됨)
+    private var monthlyLoadID = 0
+    private var statsLoadID = 0
+
     private func loadMonthlyData() async {
+        monthlyLoadID += 1
+        let loadID = monthlyLoadID
         let books = try? await userBookService.fetchMonthly(year: selectedYear, month: selectedMonth)
+        guard loadID == monthlyLoadID else { return }
         monthlyBooks = books ?? []
     }
 
     private func loadStatsData() async {
+        statsLoadID += 1
+        let loadID = statsLoadID
         async let monthly = try? statsService.monthly(year: selectedYear)
         async let yearly = try? statsService.yearly()
         async let category = try? statsService.category(year: selectedYear)
         async let ins = try? statsService.insights(year: selectedYear)
-        monthlyStats = await monthly ?? []
-        yearlyStats = await yearly ?? []
-        categoryStats = await category ?? []
-        insights = await ins
+        let (m, y, c, i) = await (monthly, yearly, category, ins)
+        guard loadID == statsLoadID else { return }
+        monthlyStats = m ?? []
+        yearlyStats = y ?? []
+        categoryStats = c ?? []
+        insights = i
     }
 
     private func loadGoal() async {
