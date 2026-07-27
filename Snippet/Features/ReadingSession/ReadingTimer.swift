@@ -62,10 +62,28 @@ final class ReadingTimer {
 
     // MARK: - 복구 가능 세션 확인
 
+    /// 영속 스냅샷 요약 — 복구 제안 UI가 타이머 인스턴스 없이 읽는다.
+    /// (Android `ActiveSessionStore.peek()`과 동일한 역할)
+    struct PersistedSession {
+        let userBookId: Int
+        let startPage: Int
+        let bookTitle: String
+    }
+
+    /// 진행 중이던 세션 스냅샷이 있으면 반환, 없으면 nil.
+    static func peekPersistedSession(defaults: UserDefaults = .standard) -> PersistedSession? {
+        guard defaults.double(forKey: Key.startEpoch) > 0 ||
+              defaults.double(forKey: Key.base) > 0 else { return nil }
+        return PersistedSession(
+            userBookId: defaults.integer(forKey: Key.userBookId),
+            startPage: defaults.integer(forKey: Key.startPage),
+            bookTitle: defaults.string(forKey: Key.bookTitle) ?? ""
+        )
+    }
+
     /// 앱 재시작 시 진행 중인 세션이 있으면 true.
     var isRecoverable: Bool {
-        defaults.double(forKey: Key.startEpoch) > 0 ||
-        defaults.double(forKey: Key.base) > 0
+        Self.peekPersistedSession(defaults: defaults) != nil
     }
 
     /// 복구: 저장된 epoch 기반으로 elapsed 재계산 후 running 상태로 복귀.

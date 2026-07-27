@@ -15,6 +15,11 @@ struct RootView: View {
     /// 푸시 딥링크 라우터 — pendingTab 변화를 관찰해 탭 전환.
     private let deepLinkRouter = DeepLinkRouter.shared
 
+    // 진행 중이던 독서 세션 복구 제안 (Android MainShell의 "이어 읽기" 스낵바와 동일 역할)
+    @State private var recoverySession: ReadingTimer.PersistedSession?
+    @State private var showRecoveryPrompt = false
+    @State private var showRecoveryTimer = false
+
     var body: some View {
         TabView(selection: $selectedTab) {
             Tab(value: SnippetTab.snippet) {
@@ -56,6 +61,32 @@ struct RootView: View {
         // 콜드 스타트(종료 상태에서 알림 탭으로 실행) → RootView 등장 시 보관된 탭 소비.
         .task {
             consumePendingTab(deepLinkRouter.pendingTab)
+            // 앱 재실행 시 영속 스냅샷이 있으면 "이어 읽기" 제안.
+            if let session = ReadingTimer.peekPersistedSession() {
+                recoverySession = session
+                showRecoveryPrompt = true
+            }
+        }
+        .alert("이전 독서 세션이 있습니다", isPresented: $showRecoveryPrompt) {
+            Button("이어 읽기") { showRecoveryTimer = true }
+            Button("나중에", role: .cancel) {}
+        } message: {
+            let title = recoverySession.map { $0.bookTitle.isEmpty ? "독서 중" : $0.bookTitle } ?? "독서 중"
+            Text("『\(title)』 세션을 이어서 읽을까요?")
+        }
+        .fullScreenCover(isPresented: $showRecoveryTimer) {
+            if let session = recoverySession {
+                ReadingTimerView(
+                    userBookId: session.userBookId,
+                    startPage: session.startPage,
+                    bookTitle: session.bookTitle.isEmpty ? "독서 중" : session.bookTitle,
+                    recovering: true,
+                    onDismiss: {
+                        showRecoveryTimer = false
+                        recoverySession = nil
+                    }
+                )
+            }
         }
     }
 

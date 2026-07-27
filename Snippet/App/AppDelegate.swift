@@ -30,7 +30,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         MainActor.assumeIsolated {
             PushNotificationManager.shared.configureDelegates()
             // 이전 실행이 강제 종료돼 잠금화면에 남은 독서 타이머 Live Activity 정리.
-            ReadingActivityController.shared.cleanupOrphans()
+            // 단, 복구 가능한 세션이 있으면 그대로 둔다 — 타이머는 wall-clock 기반이라
+            // 잠금화면 표시가 계속 유효하고, "이어 읽기" 시 recover()가 활동을 재동기화한다.
+            // (Android에서 알림이 프로세스 종료 후에도 유지되는 것과 동일한 동작)
+            if ReadingTimer.peekPersistedSession() == nil {
+                ReadingActivityController.shared.cleanupOrphans()
+            }
         }
         return true
     }

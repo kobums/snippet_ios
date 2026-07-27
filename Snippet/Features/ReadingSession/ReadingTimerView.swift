@@ -5,20 +5,39 @@ import SwiftUI
 /// 독서 세션 타이머 화면 (ActiveSessionScreen 스펙).
 ///
 /// 진입: BookDetailView의 "독서 시작" 버튼 → .fullScreenCover
+///        RootView의 "이어 읽기" 복구 제안 → .fullScreenCover (recovering=true)
 /// 상태: idle → (3초 카운트다운) → running ⇄ paused → completing → SessionCompleteView
+/// 복구 모드: 카운트다운 생략, 영속 스냅샷에서 세션 재개 (Android ReadingTimerScreen recover와 동일)
 struct ReadingTimerView: View {
 
     let userBookId: Int
     let startPage: Int
     let bookTitle: String
+    let recovering: Bool            // 복구 모드: 카운트다운 생략 + 영속 세션 재개
     let onDismiss: () -> Void       // 포기 또는 세션 완료 후 호출
+
+    init(
+        userBookId: Int,
+        startPage: Int,
+        bookTitle: String,
+        recovering: Bool = false,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.userBookId = userBookId
+        self.startPage = startPage
+        self.bookTitle = bookTitle
+        self.recovering = recovering
+        self.onDismiss = onDismiss
+        // 복구 모드는 카운트다운 오버레이가 한 프레임도 비치지 않게 초기값부터 nil
+        _countdownValue = State(initialValue: recovering ? nil : 3)
+    }
 
     @State private var timer = ReadingTimer()
     @State private var showAbandonAlert = false
     @State private var showCompleteView = false
 
     // 카운트다운 연출
-    @State private var countdownValue: Int? = 3
+    @State private var countdownValue: Int?
     @State private var countdownScale: CGFloat = 0.5
     @State private var countdownOpacity: Double = 0
 
@@ -133,7 +152,13 @@ struct ReadingTimerView: View {
             }
         }
         .task {
-            await runCountdown()
+            if recovering {
+                // 진행 중이던 세션을 그대로 재개 (영속 스냅샷에서 elapsed 재계산)
+                await LocalNotifications.requestAuthorization()
+                timer.recover()
+            } else {
+                await runCountdown()
+            }
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
