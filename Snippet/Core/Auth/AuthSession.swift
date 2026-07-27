@@ -130,6 +130,10 @@ final class AuthSession {
     private func clearLocalSession() {
         tokenStore.clearAll()
         defaults.removeObject(forKey: Self.currentUserKey)
+        // 진행 중이던 독서 세션 영속 데이터·홈 위젯 스니펫도 함께 정리해
+        // 다음 계정에 이전 사용자의 데이터가 남지 않게 한다.
+        ReadingTimer.clearPersistedSession()
+        SharedSnippetStore.clear()
         currentUser = nil
         isAuthenticated = false
     }

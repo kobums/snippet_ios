@@ -245,6 +245,11 @@ final class ReadingTimer {
     }
 
     private func clearPersistence() {
+        Self.clearPersistedSession(defaults: defaults)
+    }
+
+    /// 영속 세션 데이터 정리 — 로그아웃 등 타이머 인스턴스가 없는 외부 경로에서도 사용.
+    static func clearPersistedSession(defaults: UserDefaults = .standard) {
         defaults.removeObject(forKey: Key.startEpoch)
         defaults.removeObject(forKey: Key.base)
         defaults.removeObject(forKey: Key.paused)
