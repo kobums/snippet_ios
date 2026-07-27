@@ -171,8 +171,38 @@ final class DashboardViewModel {
         allProgressBooks = books ?? []
     }
 
+    /// 서재 탭이 전량 로드됐는지 — 검색 필터는 전량 위에서만 정확하다.
+    private var isLibraryFullyLoaded = false
+    private var isLoadingLibraryRest = false
+    private let libraryPageSize = 50
+
     private func loadLibraryBooks() async {
-        let books = try? await userBookService.fetchPaged(page: 0, size: 50)
+        isLibraryFullyLoaded = false
+        let books = try? await userBookService.fetchPaged(page: 0, size: libraryPageSize)
         libraryBooks = books ?? []
+        if let books, books.count < libraryPageSize { isLibraryFullyLoaded = true }
+    }
+
+    /// 검색어 입력 시 남은 페이지를 전부 로드한다.
+    /// 첫 페이지에만 필터가 걸리면 뒤 페이지의 책이 "검색 결과 없음"으로 나오기 때문.
+    func ensureLibraryFullyLoadedForSearch() async {
+        guard !librarySearchQuery.trimmingCharacters(in: .whitespaces).isEmpty,
+              !isLibraryFullyLoaded, !isLoadingLibraryRest else { return }
+        isLoadingLibraryRest = true
+        defer { isLoadingLibraryRest = false }
+
+        var page = 1
+        while true {
+            // 에러 시 중단 — 다음 검색어 입력에서 재시도된다.
+            guard let books = try? await userBookService.fetchPaged(page: page, size: libraryPageSize) else { return }
+            // refresh와 겹쳐도 중복 행이 생기지 않도록 id 기준 dedupe
+            let known = Set(libraryBooks.map(\.id))
+            libraryBooks.append(contentsOf: books.filter { !known.contains($0.id) })
+            if books.count < libraryPageSize {
+                isLibraryFullyLoaded = true
+                return
+            }
+            page += 1
+        }
     }
 }

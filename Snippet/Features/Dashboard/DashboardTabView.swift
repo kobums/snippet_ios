@@ -376,6 +376,11 @@ private struct DashboardLibrarySection: View {
         SearchField(prompt: "제목이나 저자로 검색", text: $vm.librarySearchQuery)
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
+            // 검색은 로드된 페이지에만 걸리므로, 입력 시 남은 페이지를 전부 로드해
+            // 뒤 페이지의 책이 "검색 결과 없음"으로 나오지 않게 한다.
+            .task(id: vm.librarySearchQuery) {
+                await vm.ensureLibraryFullyLoadedForSearch()
+            }
     }
 
     var body: some View {
