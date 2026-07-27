@@ -29,6 +29,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         // 델리게이트는 반드시 여기서 선점해야 한다. Task로 미루면 그 발화를 놓친다.
         MainActor.assumeIsolated {
             PushNotificationManager.shared.configureDelegates()
+            // 이전 실행이 강제 종료돼 잠금화면에 남은 독서 타이머 Live Activity 정리.
+            ReadingActivityController.shared.cleanupOrphans()
         }
         return true
     }

@@ -23,13 +23,25 @@ final class ReadingActivityController {
     private var _activity: Any?
     #endif
 
+    /// 앱 시작 시 이전 실행에서 남은 고아 Live Activity 정리.
+    ///
+    /// 앱이 강제 종료되면 메모리 참조(`_activity`)가 사라져 `end()`가 닿지 않고,
+    /// 잠금화면의 타이머가 계속 카운트업한다. 시스템에 등록된 활동 전체를 순회해
+    /// 제거한다. (세션 복구 기능이 배선되기 전까지, 시작 시점의 활동은 전부 고아다)
+    func cleanupOrphans() {
+        #if canImport(ActivityKit)
+        guard #available(iOS 16.1, *) else { return }
+        endAllActivities()
+        #endif
+    }
+
     /// 세션 시작 — Live Activity 시작 (running).
     func start(bookTitle: String, startPage: Int, elapsed: TimeInterval) {
         #if canImport(ActivityKit)
         guard #available(iOS 16.1, *) else { return }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
-        // 기존 활동이 있으면 정리 후 새로 시작
-        endInternal()
+        // 추적 중인 활동뿐 아니라 고아 활동까지 전부 정리 후 새로 시작 (중복 표시 방지)
+        endAllActivities()
         let attributes = ReadingActivityAttributes(bookTitle: bookTitle, startPage: startPage)
         let state = ReadingActivityAttributes.ContentState(
             timerReferenceDate: Date().addingTimeInterval(-elapsed),
@@ -86,6 +98,15 @@ final class ReadingActivityController {
     private func endInternal() {
         if let activity {
             Task { await activity.end(nil, dismissalPolicy: .immediate) }
+        }
+        activity = nil
+    }
+
+    /// 추적 중인 활동 + 시스템에 등록된 이 앱의 모든 활동(고아 포함)을 종료.
+    @available(iOS 16.1, *)
+    private func endAllActivities() {
+        for existing in Activity<ReadingActivityAttributes>.activities {
+            Task { await existing.end(nil, dismissalPolicy: .immediate) }
         }
         activity = nil
     }
