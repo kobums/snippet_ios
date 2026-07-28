@@ -7,12 +7,7 @@ struct RecordCardView: View {
     let record: RecordDto
 
     private var formattedDate: String {
-        let raw = record.createDate
-        // "yyyy-MM-dd'T'HH:mm:ss" 또는 "yyyy-MM-dd" 처리
-        let prefix = String(raw.prefix(10))
-        let parts = prefix.split(separator: "-")
-        guard parts.count == 3 else { return prefix }
-        return "\(parts[0]).\(parts[1]).\(parts[2])"
+        APIDate.dotDayString(from: record.createDate)
     }
 
     var body: some View {

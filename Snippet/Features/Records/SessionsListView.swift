@@ -116,10 +116,7 @@ struct ReadingSessionCardView: View {
     let session: ReadingSessionDto
 
     private var formattedDate: String {
-        let raw = session.sessionDate  // "yyyy-MM-dd"
-        let parts = raw.split(separator: "-")
-        guard parts.count == 3 else { return raw }
-        return "\(parts[0]).\(parts[1]).\(parts[2])"
+        APIDate.dotDayString(from: session.sessionDate)
     }
 
     private var formattedDuration: String {
@@ -193,9 +190,7 @@ struct SessionDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     private var formattedDate: String {
-        let parts = session.sessionDate.split(separator: "-")
-        guard parts.count == 3 else { return session.sessionDate }
-        return "\(parts[0]).\(parts[1]).\(parts[2])"
+        APIDate.dotDayString(from: session.sessionDate)
     }
 
     private var formattedDuration: String {

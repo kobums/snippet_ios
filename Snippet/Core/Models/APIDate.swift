@@ -27,6 +27,15 @@ enum APIDate {
         return makeFormatter("yyyy-MM-dd").date(from: string)
     }
 
+    /// "yyyy-MM-dd" 또는 "yyyy-MM-dd'T'HH:mm:ss" → "yyyy.MM.dd" 표시 문자열.
+    /// 형식이 어긋나면 앞 10자를 그대로 반환한다 (기록/세션/건의 카드 공통 표기).
+    static func dotDayString(from raw: String) -> String {
+        let day = String(raw.prefix(10))
+        let parts = day.split(separator: "-")
+        guard parts.count == 3 else { return day }
+        return "\(parts[0]).\(parts[1]).\(parts[2])"
+    }
+
     /// 앱 → 서버 ISO LocalDateTime 문자열 (Dart toIso8601String 호환).
     static func dateTimeString(from date: Date = Date()) -> String {
         makeFormatter("yyyy-MM-dd'T'HH:mm:ss.SSSSSS").string(from: date)

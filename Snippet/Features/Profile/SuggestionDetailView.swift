@@ -102,11 +102,7 @@ struct SuggestionDetailView: View {
             )
     }
 
-    /// "yyyy-MM-dd'T'HH:mm:ss" → "yyyy.MM.dd" (SuggestionView와 동일한 표기).
     private func formattedDate(_ iso: String) -> String {
-        let prefix = String(iso.prefix(10))
-        let parts = prefix.split(separator: "-")
-        guard parts.count == 3 else { return prefix }
-        return "\(parts[0]).\(parts[1]).\(parts[2])"
+        APIDate.dotDayString(from: iso)
     }
 }
