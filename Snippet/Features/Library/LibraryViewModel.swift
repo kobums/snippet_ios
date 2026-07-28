@@ -23,11 +23,6 @@ final class LibraryViewModel {
     var borrowError: String? = nil
     var wishError: String? = nil
 
-    // 탭별 검색어
-    var haveSearchQuery = ""
-    var borrowSearchQuery = ""
-    var wishSearchQuery = ""
-
     // 무한 스크롤 페이지
     private var havePage = 0
     private var borrowPage = 0
@@ -70,29 +65,6 @@ final class LibraryViewModel {
     private let bookService = BookService()
     private let recordService = RecordService()
     private let sessionService = ReadingSessionService()
-
-    // MARK: - 필터링 계산 (검색어 적용)
-
-    var filteredHaveBooks: [UserBookDto] {
-        filter(books: haveBooks, query: haveSearchQuery)
-    }
-
-    var filteredBorrowBooks: [UserBookDto] {
-        filter(books: borrowBooks, query: borrowSearchQuery)
-    }
-
-    var filteredWishBooks: [UserBookDto] {
-        filter(books: wishBooks, query: wishSearchQuery)
-    }
-
-    private func filter(books: [UserBookDto], query: String) -> [UserBookDto] {
-        let q = query.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return books }
-        return books.filter {
-            $0.title.localizedCaseInsensitiveContains(q) ||
-            $0.author.localizedCaseInsensitiveContains(q)
-        }
-    }
 
     // MARK: - 목록 로드 (전체 재로드)
 
@@ -219,12 +191,8 @@ final class LibraryViewModel {
     @discardableResult
     func updateBook(id: Int, request: UserBookUpdateRequest) async -> Bool {
         let result = try? await userBookService.update(id: id, request)
-        if result != nil {
-            await loadAllTabs()
-            return true
-        }
         await loadAllTabs()
-        return false
+        return result != nil
     }
 
     // MARK: - 삭제

@@ -88,7 +88,7 @@ struct LibraryTabView: View {
                 ZStack {
                     LibrarySubTabView(
                         type: .have,
-                        books: viewModel.filteredHaveBooks,
+                        books: viewModel.haveBooks,
                         isLoading: viewModel.isLoadingHave,
                         error: viewModel.haveError,
                         onRefresh: { await viewModel.loadHave(refresh: true) },
@@ -104,7 +104,7 @@ struct LibraryTabView: View {
 
                     LibrarySubTabView(
                         type: .borrow,
-                        books: viewModel.filteredBorrowBooks,
+                        books: viewModel.borrowBooks,
                         isLoading: viewModel.isLoadingBorrow,
                         error: viewModel.borrowError,
                         onRefresh: { await viewModel.loadBorrow(refresh: true) },
@@ -120,7 +120,7 @@ struct LibraryTabView: View {
 
                     LibrarySubTabView(
                         type: .wish,
-                        books: viewModel.filteredWishBooks,
+                        books: viewModel.wishBooks,
                         isLoading: viewModel.isLoadingWish,
                         error: viewModel.wishError,
                         onRefresh: { await viewModel.loadWish(refresh: true) },
