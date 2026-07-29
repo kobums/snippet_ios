@@ -1,8 +1,9 @@
 import Foundation
 
 extension Notification.Name {
-    /// refresh 실패 시 강제 로그아웃 브로드캐스트 (문서 §9.3-6).
+    /// 서버가 리프레시 토큰을 명시적으로 거부했을 때만 발화하는 강제 로그아웃 브로드캐스트 (문서 §9.3-6).
     /// AuthSession이 수신해 로컬 인증 데이터를 정리하고 로그인 화면으로 리셋한다.
+    /// 네트워크 오류·5xx 등 일시적 refresh 실패에서는 절대 발화하지 않는다.
     static let snippetForceLogout = Notification.Name("com.gowoobro.snippet.forceLogout")
 }
 
@@ -79,23 +80,26 @@ final class APIClient: Sendable {
             let newToken: String
             do {
                 newToken = try await refreshCoordinator.refreshAccessToken()
-            } catch {
-                // 갱신 실패 → 토큰 전체 삭제 + 강제 로그아웃 브로드캐스트
+            } catch TokenRefreshError.rejected {
+                // 서버가 리프레시 토큰을 명시적으로 거부(400/401/403)한 경우에만 세션 종료.
                 tokenStore.clearAll()
                 NotificationCenter.default.post(name: .snippetForceLogout, object: nil)
                 throw APIError.auth("세션이 만료되었습니다. 다시 로그인해주세요")
+            } catch TokenRefreshError.transient(let apiError) {
+                // 네트워크 오류·5xx 등 일시적 실패 → 토큰을 유지하고 이번 요청만 실패.
+                // 다음 요청의 401에서 refresh를 다시 시도한다.
+                throw apiError
+            } catch {
+                throw APIError.wrap(error)
             }
 
             request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
             (data, response) = try await send(request)
 
-            // 갱신된 토큰으로 재시도했는데도 401이면 더 이상 회복 불가 →
-            // 토큰 정리 + 강제 로그아웃 (무한 refresh/retry 루프 방지, 문서 §9.3-6)
-            if response.statusCode == 401 {
-                tokenStore.clearAll()
-                NotificationCenter.default.post(name: .snippetForceLogout, object: nil)
-                throw APIError.auth("세션이 만료되었습니다. 다시 로그인해주세요")
-            }
+            // 갱신된 토큰으로 재시도했는데도 401이면 비정상 상태지만, 방금 refresh가
+            // 성공했으므로 세션 자체는 살아 있다 — 로그아웃하지 않고 아래 공통 가드에서
+            // 에러만 전파한다 (Android TokenAuthenticator와 동일 정책, 요청당 refresh 1회라
+            // 무한 루프 없음).
         }
 
         guard (200..<300).contains(response.statusCode) else {
