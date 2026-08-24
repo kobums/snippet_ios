@@ -53,6 +53,10 @@ final class KeychainTokenStore: Sendable {
         delete(accessTokenKey)
     }
 
+    func clearRefreshToken() {
+        delete(refreshTokenKey)
+    }
+
     func clearAll() {
         delete(accessTokenKey)
         delete(refreshTokenKey)

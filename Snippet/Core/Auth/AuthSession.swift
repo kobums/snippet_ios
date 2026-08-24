@@ -111,6 +111,10 @@ final class AuthSession {
             if let refreshToken = user.refreshToken {
                 tokenStore.save(accessToken: token, refreshToken: refreshToken)
             } else {
+                // 새 세션에 refresh 토큰이 없으면 이전 계정 것을 반드시 지운다.
+                // 남겨두면 401 → refresh가 이전 계정으로 되살아나 화면은 새 계정,
+                // 쓰기는 이전 계정으로 나가는 교차 오염이 생긴다.
+                tokenStore.clearRefreshToken()
                 tokenStore.save(accessToken: token)
             }
         }
