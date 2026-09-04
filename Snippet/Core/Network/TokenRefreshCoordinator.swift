@@ -75,6 +75,12 @@ actor TokenRefreshCoordinator {
         request.httpMethod = "POST"
         request.timeoutInterval = APIConfig.requestTimeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // 서버 AppVersionEnforcementFilter는 버전 헤더가 없고 UA가 CFNetwork인 요청을
+        // "게이트 이전 iOS 구버전"으로 간주해 426을 돌려준다. refresh는 APIClient를
+        // 우회하는 별도 세션이라 여기서도 반드시 버전 헤더를 붙여야 한다 —
+        // 빠지면 access 토큰 만료(1시간) 이후 모든 요청이 refresh 단계에서 실패한다.
+        request.setValue(AppVersionInfo.current, forHTTPHeaderField: "X-App-Version")
+        request.setValue("ios", forHTTPHeaderField: "X-App-Platform")
         do {
             request.httpBody = try JSONCoding.encoder.encode(["refreshToken": refreshToken])
         } catch {
