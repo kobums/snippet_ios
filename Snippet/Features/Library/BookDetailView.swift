@@ -16,6 +16,8 @@ struct BookDetailView: View {
     @State private var showDeleteError = false
     @State private var showRatingSheet = false
     @State private var isSaving = false
+    /// 저장 실패/입력 오류 알림 메시지 (nil이면 알림 없음)
+    @State private var saveAlertMessage: String?
     @State private var readPageText = ""
     @State private var showReturnDatePicker = false
     @State private var showStartDatePicker = false
@@ -128,6 +130,17 @@ struct BookDetailView: View {
             Text("'\(localBook.title)'을(를) 서재에서 삭제하시겠습니까?")
         }
         .deleteFailureAlert(isPresented: $showDeleteError)
+        .alert(
+            "저장하지 못했어요",
+            isPresented: Binding(
+                get: { saveAlertMessage != nil },
+                set: { if !$0 { saveAlertMessage = nil } }
+            )
+        ) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(saveAlertMessage ?? "")
+        }
         .sheet(isPresented: $showRatingSheet) {
             RatingSheet(
                 bookTitle: localBook.title,
@@ -373,17 +386,37 @@ struct BookDetailView: View {
     /// 읽은 페이지 커밋. 버튼 탭과 키보드 완료가 같은 경로를 탄다.
     /// 마지막 페이지 도달 시 완독 처리 + 성공 햅틱 + 별점 시트.
     private func commitReadPage() {
-        let page = Int(readPageText) ?? 0
+        // 저장 중 연타 방지 — Task가 시작되기 전에 잠가야 두 번째 탭이 막힌다.
+        guard !isSaving else { return }
+
+        let trimmed = readPageText.trimmingCharacters(in: .whitespaces)
+        // 빈 입력은 0페이지 저장이 아니라 취소로 본다.
+        guard !trimmed.isEmpty, let page = Int(trimmed) else {
+            readPageText = String(localBook.readPage)
+            return
+        }
+        guard page != localBook.readPage else { return }
+
+        let total = localBook.totalPage
+        guard page >= 0, total <= 0 || page <= total else {
+            Haptics.warning()
+            saveAlertMessage = "페이지는 0에서 \(total > 0 ? String(total) : "?") 사이로 입력해 주세요."
+            readPageText = String(localBook.readPage)
+            return
+        }
+
+        isSaving = true
         Task {
             var req = UserBookUpdateRequest(readPage: page)
-            let isCompleting = page == localBook.totalPage && localBook.totalPage > 0
+            let isCompleting = total > 0 && page == total && localBook.status != .completed
             if isCompleting {
                 req.status = .completed
                 if localBook.endDate == nil {
                     req.endDate = APIDate.dayString()
                 }
             }
-            await saveUpdate(req)
+            // 성공했을 때만 성공 햅틱·별점 시트 (실패는 saveUpdate가 알림)
+            guard await saveUpdate(req) else { return }
             if isCompleting {
                 Haptics.success()
                 showRatingSheet = true
@@ -677,15 +710,26 @@ struct BookDetailView: View {
         }
     }
 
-    private func saveUpdate(_ request: UserBookUpdateRequest) async {
+    /// 서버 저장 후 응답으로 화면 갱신. 실패 시 알림을 띄우고 입력값을 원래대로 되돌린다.
+    /// - Returns: 저장 성공 여부
+    @discardableResult
+    private func saveUpdate(_ request: UserBookUpdateRequest) async -> Bool {
         isSaving = true
         defer { isSaving = false }
-        let result = try? await UserBookService().update(id: localBook.id, request)
-        if let updated = result {
+        do {
+            let updated = try await UserBookService().update(id: localBook.id, request)
             localBook = updated
             readPageText = String(updated.readPage)
+            await viewModel.loadAllTabs()
+            return true
+        } catch {
+            // 예전엔 try?로 삼켜서 실패해도 아무 표시가 없었다 → "변경이 안 된" 것처럼만 보였음
+            Haptics.error()
+            readPageText = String(localBook.readPage)
+            saveAlertMessage = (error as? APIError)?.userMessage
+                ?? "잠시 후 다시 시도해 주세요."
+            return false
         }
-        await viewModel.loadAllTabs()
     }
 }
 
