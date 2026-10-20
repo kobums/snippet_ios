@@ -169,6 +169,10 @@ private struct DashboardStatsSection: View {
                 StreakCard(streak: vm.streak)
                     .padding(.horizontal, 16)
 
+                // 일별 읽은 페이지 (선택 년/월 공유)
+                DailyPagesCard(vm: vm)
+                    .padding(.horizontal, 16)
+
                 // 추천 도서
                 if !vm.recommendedBooks.isEmpty {
                     RecommendationSection(books: vm.recommendedBooks) {

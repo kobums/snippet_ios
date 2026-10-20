@@ -24,6 +24,10 @@ final class DashboardViewModel {
     var streak: StreakDto = .empty
     var recommendedBooks: [BookRecommendDto] = []
 
+    // 일별 읽은 페이지 (선택한 년/월)
+    var dailyPages: DailyPagesSummary? = nil
+    var dailyPagesError: String? = nil
+
     // 진행 탭
     var allProgressBooks: [UserBookDto] = []
     var selectedProgressStatus: BookStatus = .reading
@@ -39,6 +43,7 @@ final class DashboardViewModel {
     private let goalService = ReadingGoalService()
     private let sessionService = ReadingSessionService()
     private let bookService = BookService()
+    private let readingLogService = ReadingLogService()
 
     // MARK: 공개 메서드
 
@@ -48,6 +53,7 @@ final class DashboardViewModel {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.loadMonthlyData() }
             group.addTask { await self.loadStatsData() }
+            group.addTask { await self.loadDailyPages() }
             group.addTask { await self.loadGoal() }
             group.addTask { await self.loadStreak() }
             group.addTask { await self.loadProgressBooks() }
@@ -60,6 +66,7 @@ final class DashboardViewModel {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.loadMonthlyData() }
             group.addTask { await self.loadStatsData() }
+            group.addTask { await self.loadDailyPages() }
             group.addTask { await self.loadGoal() }
             group.addTask { await self.loadStreak() }
             group.addTask { await self.loadRecommendations() }
@@ -77,7 +84,10 @@ final class DashboardViewModel {
     func changeMonth(year: Int, month: Int) async {
         selectedYear = year
         selectedMonth = month
-        await loadMonthlyData()
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await self.loadMonthlyData() }
+            group.addTask { await self.loadDailyPages() }
+        }
     }
 
     /// 연도 변경 — 월 데이터와 함께 연도 스코프 통계(월별 차트/카테고리/인사이트)도 갱신.
@@ -86,7 +96,13 @@ final class DashboardViewModel {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.loadMonthlyData() }
             group.addTask { await self.loadStatsData() }
+            group.addTask { await self.loadDailyPages() }
         }
+    }
+
+    /// 일별 읽은 페이지만 다시 불러온다 (에러 상태의 "다시 시도").
+    func retryDailyPages() async {
+        await loadDailyPages()
     }
 
     func updateGoal(targetBooks: Int) async {
@@ -128,6 +144,7 @@ final class DashboardViewModel {
     // 세대 토큰으로 최신 요청만 상태에 반영한다. (@MainActor라 증가/비교는 직렬화됨)
     private var monthlyLoadID = 0
     private var statsLoadID = 0
+    private var dailyPagesLoadID = 0
 
     private func loadMonthlyData() async {
         monthlyLoadID += 1
@@ -150,6 +167,33 @@ final class DashboardViewModel {
         yearlyStats = y ?? []
         categoryStats = c ?? []
         insights = i
+    }
+
+    /// GET /readinglogs/daily — 다른 카드와 달리 빈값 폴백 대신 에러를 노출한다
+    /// (0쪽 차트가 "안 읽었다"로 오해되지 않도록).
+    private func loadDailyPages() async {
+        dailyPagesLoadID += 1
+        let loadID = dailyPagesLoadID
+        let year = selectedYear
+        let month = selectedMonth
+        dailyPagesError = nil
+        // 다른 달로 이동했으면 이전 달 데이터를 보이지 않게 비운다 (같은 달 새로고침은 유지).
+        if let current = dailyPages, current.year != year || current.month != month {
+            dailyPages = nil
+        }
+        do {
+            let logs = try await readingLogService.daily(year: year, month: month)
+            guard loadID == dailyPagesLoadID else { return }
+            dailyPages = DailyPagesSummary(year: year, month: month, logs: logs)
+        } catch {
+            guard loadID == dailyPagesLoadID else { return }
+            // pull-to-refresh 취소 등 사용자가 의도한 취소는 에러로 보이지 않는다.
+            // (APIClient가 URLError를 APIError.network로 감싸므로 Task 취소 여부로 판별)
+            let isCancellation = Task.isCancelled || error is CancellationError
+            if !isCancellation {
+                dailyPagesError = APIError.wrap(error).userMessage
+            }
+        }
     }
 
     private func loadGoal() async {
