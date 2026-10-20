@@ -46,7 +46,7 @@ struct RecordDto: Codable, Identifiable, Equatable, Sendable {
         bookId = try c.decode(Int.self, forKey: .bookId)
         bookTitle = try c.decodeIfPresent(String.self, forKey: .bookTitle) ?? ""
         bookAuthor = try c.decodeIfPresent(String.self, forKey: .bookAuthor) ?? ""
-        bookCoverUrl = try c.decodeIfPresent(String.self, forKey: .bookCoverUrl) ?? ""
+        bookCoverUrl = try c.decodeIfPresent(String.self, forKey: .bookCoverUrl)?.httpsUpgradedURLString ?? ""
         type = try c.decodeIfPresent(RecordType.self, forKey: .type) ?? .snippet
         text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
         tag = try c.decodeIfPresent(String.self, forKey: .tag)

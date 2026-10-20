@@ -33,7 +33,7 @@ struct SnippetArchive: Codable, Identifiable, Equatable, Sendable {
         tag = try c.decodeIfPresent(String.self, forKey: .tag)
         bookTitle = try c.decodeIfPresent(String.self, forKey: .bookTitle) ?? ""
         bookAuthor = try c.decodeIfPresent(String.self, forKey: .bookAuthor) ?? ""
-        coverUrl = try c.decodeIfPresent(String.self, forKey: .coverUrl) ?? ""
+        coverUrl = try c.decodeIfPresent(String.self, forKey: .coverUrl)?.httpsUpgradedURLString ?? ""
         affiliateUrl = try c.decodeIfPresent(String.self, forKey: .affiliateUrl) ?? ""
     }
 }

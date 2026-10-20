@@ -17,7 +17,7 @@ struct BookSearchDto: Codable, Equatable, Sendable {
         publisher = try c.decodeIfPresent(String.self, forKey: .publisher) ?? ""
         pubDate = try c.decodeIfPresent(String.self, forKey: .pubDate) ?? ""
         isbn = try c.decodeIfPresent(String.self, forKey: .isbn) ?? ""
-        coverUrl = try c.decodeIfPresent(String.self, forKey: .coverUrl) ?? ""
+        coverUrl = try c.decodeIfPresent(String.self, forKey: .coverUrl)?.httpsUpgradedURLString ?? ""
         totalPage = try c.decodeIfPresent(Int.self, forKey: .totalPage)
     }
 }
@@ -45,7 +45,7 @@ struct PopularBookDto: Codable, Equatable, Sendable {
         kdc = try c.decodeIfPresent(String.self, forKey: .kdc) ?? ""
         kdcName = try c.decodeIfPresent(String.self, forKey: .kdcName) ?? ""
         loanCount = try c.decodeIfPresent(Int.self, forKey: .loanCount) ?? 0
-        coverUrl = try c.decodeIfPresent(String.self, forKey: .coverUrl) ?? ""
+        coverUrl = try c.decodeIfPresent(String.self, forKey: .coverUrl)?.httpsUpgradedURLString ?? ""
     }
 }
 
@@ -79,7 +79,7 @@ struct BookRecommendDto: Codable, Identifiable, Equatable, Sendable {
         id = try c.decode(Int.self, forKey: .id)
         title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
         author = try c.decodeIfPresent(String.self, forKey: .author) ?? ""
-        coverUrl = try c.decodeIfPresent(String.self, forKey: .coverUrl) ?? ""
+        coverUrl = try c.decodeIfPresent(String.self, forKey: .coverUrl)?.httpsUpgradedURLString ?? ""
         category = try c.decodeIfPresent(String.self, forKey: .category)
         reason = try c.decodeIfPresent(String.self, forKey: .reason) ?? ""
     }
