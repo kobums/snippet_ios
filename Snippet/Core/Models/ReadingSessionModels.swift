@@ -23,7 +23,7 @@ struct ReadingSessionDto: Codable, Identifiable, Equatable, Sendable {
         bookId = try c.decodeIfPresent(Int.self, forKey: .bookId) ?? 0
         bookTitle = try c.decodeIfPresent(String.self, forKey: .bookTitle) ?? ""
         bookAuthor = try c.decodeIfPresent(String.self, forKey: .bookAuthor) ?? ""
-        bookCoverUrl = try c.decodeIfPresent(String.self, forKey: .bookCoverUrl) ?? ""
+        bookCoverUrl = try c.decodeIfPresent(String.self, forKey: .bookCoverUrl)?.httpsUpgradedURLString ?? ""
         durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds) ?? 0
         startPage = try c.decodeIfPresent(Int.self, forKey: .startPage) ?? 0
         endPage = try c.decodeIfPresent(Int.self, forKey: .endPage) ?? 0

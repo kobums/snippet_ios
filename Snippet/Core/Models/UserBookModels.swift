@@ -30,7 +30,7 @@ struct UserBookDto: Codable, Identifiable, Equatable, Hashable, Sendable {
         bookId = try c.decode(Int.self, forKey: .bookId)
         title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
         author = try c.decodeIfPresent(String.self, forKey: .author) ?? ""
-        coverUrl = try c.decodeIfPresent(String.self, forKey: .coverUrl) ?? ""
+        coverUrl = try c.decodeIfPresent(String.self, forKey: .coverUrl)?.httpsUpgradedURLString ?? ""
         type = try c.decode(BookType.self, forKey: .type)
         status = try c.decode(BookStatus.self, forKey: .status)
         readPage = try c.decodeIfPresent(Int.self, forKey: .readPage) ?? 0
