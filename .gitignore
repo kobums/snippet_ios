@@ -31,3 +31,7 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/test_output
 fastlane/README.md
+
+# 키·자격증명 (실수 커밋 방지)
+*.key
+credentials.json
