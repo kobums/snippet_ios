@@ -244,6 +244,22 @@ def sync_release_notes(version)
   meta_path
 end
 
+# App Store 심사 데모 계정 → App Store Connect "앱 심사 정보"
+# 심사관은 이 계정으로 로그인해 책 추가·기록·회원탈퇴까지 직접 테스트한다. 개인 계정을 쓰면
+# 심사 중 추가된 책이 내 서재에 남고(2026-10 "자몽살구클럽"), 탈퇴 테스트 한 번에 내 데이터가 사라진다.
+# 값은 fastlane/.env 의 REVIEW_DEMO_USER / REVIEW_DEMO_PASSWORD (gitignore — 커밋 금지).
+# 하나라도 비어 있으면 아무것도 넘기지 않는다: deliver는 데모 계정 값이 비면
+# demo_account_required를 false로 덮어써서 ASC에 설정된 기존 데모 계정까지 꺼버린다.
+def review_demo_account
+  user = ENV["REVIEW_DEMO_USER"].to_s.strip
+  password = ENV["REVIEW_DEMO_PASSWORD"].to_s.strip
+  if user.empty? || password.empty?
+    UI.important("REVIEW_DEMO_USER/REVIEW_DEMO_PASSWORD 미설정 — App Store Connect의 기존 심사 데모 계정을 그대로 둡니다.")
+    return {}
+  end
+  { app_review_information: { demo_user: user, demo_password: password } }
+end
+
 platform :ios do
 
   # -------------------------------------------------------
@@ -327,7 +343,8 @@ platform :ios do
       submission_information: {
         export_compliance_uses_encryption: false, # 표준 HTTPS 외 자체 암호화 미사용 가정. 실제와 다르면 수정할 것
         add_id_info_uses_idfa: false               # 광고 추적(IDFA) 미사용 가정. 실제와 다르면 수정할 것
-      }
+      },
+      **review_demo_account # 심사 데모 계정 (fastlane/.env)
     )
 
     # 버전/릴리즈노트 변경사항 커밋 + 다음 릴리즈 노트 자동 생성의 커밋 범위 기준이 되는 태그
@@ -382,7 +399,8 @@ platform :ios do
       submission_information: {
         export_compliance_uses_encryption: false,
         add_id_info_uses_idfa: false
-      }
+      },
+      **review_demo_account # 심사 데모 계정 (fastlane/.env)
     )
 
     if system("git", "-C", project_root, "tag", "v#{version}")
