@@ -45,6 +45,57 @@ final class DashboardViewModel {
     private let bookService = BookService()
     private let readingLogService = ReadingLogService()
 
+    // MARK: 다른 화면의 책 변경 반영
+
+    /// 옵저버 토큰 보관함. deinit은 nonisolated라 @MainActor 프로퍼티를 못 건드리므로,
+    /// 해제 책임을 ViewModel과 수명을 같이하는 별도 객체에 맡긴다.
+    private final class ObserverToken: @unchecked Sendable {
+        var token: NSObjectProtocol?
+        deinit {
+            if let token { NotificationCenter.default.removeObserver(token) }
+        }
+    }
+
+    private let bookChangedObserver = ObserverToken()
+    /// 상태 변경 → 별점 저장처럼 연달아 오면 직전 조회를 취소하고 마지막 것만 반영한다.
+    private var bookChangeRefreshTask: Task<Void, Never>?
+
+    init() {
+        bookChangedObserver.token = NotificationCenter.default.addObserver(
+            forName: .snippetUserBookChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            let updated = note.object as? UserBookDto
+            Task { @MainActor [weak self] in
+                self?.applyBookChange(updated)
+            }
+        }
+    }
+
+    /// 수정된 책은 서버 응답으로 즉시 갈아끼우고, 집계는 뒤이어 조용히 다시 받는다.
+    /// isLoading을 켜지 않아 복귀 시 스켈레톤이 번쩍이지 않는다.
+    private func applyBookChange(_ updated: UserBookDto?) {
+        if let updated {
+            libraryBooks = libraryBooks.map { $0.id == updated.id ? updated : $0 }
+        }
+        bookChangeRefreshTask?.cancel()
+        bookChangeRefreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await self.loadMonthlyData() }
+                group.addTask { await self.loadStatsData() }
+                group.addTask { await self.loadDailyPages() }
+                group.addTask { await self.loadGoal() }
+                group.addTask { await self.loadStreak() }
+                group.addTask { await self.loadProgressBooks() }
+                // 추가·삭제는 목록 구성 자체가 바뀌므로 서재 탭도 다시 받는다.
+                // 수정은 위에서 제자리 교체했으므로 재조회해서 페이지네이션을 되감지 않는다.
+                if updated == nil { group.addTask { await self.loadLibraryBooks() } }
+            }
+        }
+    }
+
     // MARK: 공개 메서드
 
     func loadAll() async {
