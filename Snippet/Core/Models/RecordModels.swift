@@ -13,6 +13,8 @@ struct RecordDto: Codable, Identifiable, Equatable, Sendable {
     let tag: String?
     let relatedPage: Int?
     let createDate: String   // ISO LocalDateTime
+    /// 스와이프 카드 공개 여부 (밑줄만, 기본 비공개). 구 서버 응답엔 없어서 false 폴백.
+    let isPublic: Bool
 
     /// 메모리상에서 RecordDto를 직접 구성하기 위한 멤버와이즈 이니셜라이저.
     /// (예: 편집 화면에서 미저장 상태의 기록을 미리보기/공유할 때)
@@ -26,7 +28,8 @@ struct RecordDto: Codable, Identifiable, Equatable, Sendable {
         text: String,
         tag: String?,
         relatedPage: Int?,
-        createDate: String
+        createDate: String,
+        isPublic: Bool = false
     ) {
         self.id = id
         self.bookId = bookId
@@ -38,6 +41,7 @@ struct RecordDto: Codable, Identifiable, Equatable, Sendable {
         self.tag = tag
         self.relatedPage = relatedPage
         self.createDate = createDate
+        self.isPublic = isPublic
     }
 
     init(from decoder: Decoder) throws {
@@ -52,6 +56,7 @@ struct RecordDto: Codable, Identifiable, Equatable, Sendable {
         tag = try c.decodeIfPresent(String.self, forKey: .tag)
         relatedPage = try c.decodeIfPresent(Int.self, forKey: .relatedPage)
         createDate = try c.decodeIfPresent(String.self, forKey: .createDate) ?? ""
+        isPublic = try c.decodeIfPresent(Bool.self, forKey: .isPublic) ?? false
     }
 }
 
@@ -62,6 +67,7 @@ struct RecordAddRequest: Encodable, Sendable {
     let text: String
     var tag: String?
     var relatedPage: Int?
+    var isPublic: Bool?   // 스와이프 카드 공개 (밑줄만)
 }
 
 /// PATCH /records/{id} 요청 바디 — nil 키는 생략.
@@ -70,4 +76,5 @@ struct RecordUpdateRequest: Encodable, Sendable {
     var text: String?
     var tag: String?
     var relatedPage: Int?
+    var isPublic: Bool?
 }

@@ -117,6 +117,30 @@ struct RecordDetailFieldsSection: View {
     }
 }
 
+/// 밑줄을 다른 사용자의 스와이프 카드에 공개할지 — 기본은 비공개.
+/// 예전엔 모든 밑줄이 작성자 동의 없이 카드에 노출됐다. 밑줄 유형일 때만 보여준다.
+struct RecordVisibilitySection: View {
+
+    @Binding var isPublic: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeaderView(title: "공개 설정")
+
+            Toggle(isOn: $isPublic) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("스와이프 카드에 공개")
+                    Text("켜면 이 문장이 다른 사용자의 스와이프 카드에 나옵니다.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(12)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: AppRadius.cardLarge))
+        }
+    }
+}
+
 extension View {
     /// 카메라 촬영/사진 선택 → OCR 인식 → 확정 텍스트를 본문에 삽입하는 공용 파이프라인.
     /// 촬영 이미지·결과 시트 상태는 내부에서 소유한다.

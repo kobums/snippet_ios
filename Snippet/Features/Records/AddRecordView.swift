@@ -27,6 +27,7 @@ struct AddRecordView: View {
     @State private var bodyText: String = ""
     @State private var tagText: String = ""
     @State private var pageText: String = ""
+    @State private var isPublic = false
 
     @State private var isSaving = false
     @State private var showDiscardDialog = false
@@ -138,6 +139,9 @@ struct AddRecordView: View {
                     showPhotoPicker: $showPhotoPicker
                 )
                 RecordDetailFieldsSection(tagText: $tagText, pageText: $pageText)
+                if selectedType == .snippet {
+                    RecordVisibilitySection(isPublic: $isPublic)
+                }
             }
             .padding(16)
         }
@@ -253,7 +257,8 @@ struct AddRecordView: View {
             type: selectedType,
             text: trimmed,
             tag: tagText.isEmpty ? nil : tagText,
-            relatedPage: Int(pageText)
+            relatedPage: Int(pageText),
+            isPublic: selectedType == .snippet ? isPublic : false
         )
 
         do {

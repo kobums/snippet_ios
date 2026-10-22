@@ -18,6 +18,7 @@ struct EditRecordView: View {
     @State private var bodyText: String
     @State private var tagText: String
     @State private var pageText: String
+    @State private var isPublic: Bool
 
     @State private var isSaving = false
     @State private var isDeleting = false
@@ -42,6 +43,7 @@ struct EditRecordView: View {
         _bodyText = State(initialValue: record.text)
         _tagText = State(initialValue: record.tag ?? "")
         _pageText = State(initialValue: record.relatedPage.map { String($0) } ?? "")
+        _isPublic = State(initialValue: record.isPublic)
     }
 
     private var isFormValid: Bool {
@@ -54,6 +56,7 @@ struct EditRecordView: View {
             || bodyText != record.text
             || tagText != (record.tag ?? "")
             || pageText != (record.relatedPage.map { String($0) } ?? "")
+            || isPublic != record.isPublic
     }
 
     /// 현재 편집 중(미저장 포함) 내용을 반영한 미리보기/공유용 기록.
@@ -68,7 +71,8 @@ struct EditRecordView: View {
             text: bodyText,
             tag: tagText.isEmpty ? nil : tagText,
             relatedPage: Int(pageText),
-            createDate: record.createDate
+            createDate: record.createDate,
+            isPublic: selectedType == .snippet && isPublic
         )
     }
 
@@ -84,6 +88,9 @@ struct EditRecordView: View {
                         showPhotoPicker: $showPhotoPicker
                     )
                     RecordDetailFieldsSection(tagText: $tagText, pageText: $pageText)
+                    if selectedType == .snippet {
+                        RecordVisibilitySection(isPublic: $isPublic)
+                    }
                     exportSectionView
                     deleteSectionView
                 }
@@ -277,7 +284,8 @@ struct EditRecordView: View {
             type: selectedType,
             text: trimmed,
             tag: tagText.isEmpty ? nil : tagText,
-            relatedPage: Int(pageText)
+            relatedPage: Int(pageText),
+            isPublic: selectedType == .snippet ? isPublic : false
         )
 
         let success = await vm.updateRecord(id: record.id, request)

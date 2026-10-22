@@ -31,6 +31,13 @@ struct RecordCardView: View {
                         )
                 }
 
+                // 스와이프 카드에 공개된 밑줄
+                if record.type == .snippet && record.isPublic {
+                    Label("공개", systemImage: "globe")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+
                 Spacer()
 
                 // 페이지 + 날짜
