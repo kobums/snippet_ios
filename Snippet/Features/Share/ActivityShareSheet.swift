@@ -16,17 +16,39 @@ struct ActivityShareSheet: UIViewControllerRepresentable {
             activityItems: activityItems,
             applicationActivities: nil
         )
-        // iPad popover anchor
+        // iPad popover anchor — 실제 표시 시점의 presenting view 기준으로 지정 (Coordinator)
         if let popover = vc.popoverPresentationController {
-            popover.sourceRect = sourceRect.isEmpty
-                ? CGRect(x: UIScreen.main.bounds.midX, y: UIScreen.main.bounds.midY, width: 1, height: 1)
-                : sourceRect
+            popover.delegate = context.coordinator
             popover.permittedArrowDirections = .any
         }
         return vc
     }
 
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
+        context.coordinator.sourceRect = sourceRect
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(sourceRect: sourceRect)
+    }
+
+    final class Coordinator: NSObject, UIPopoverPresentationControllerDelegate {
+        var sourceRect: CGRect
+
+        init(sourceRect: CGRect) {
+            self.sourceRect = sourceRect
+        }
+
+        func prepareForPopoverPresentation(_ popover: UIPopoverPresentationController) {
+            guard popover.sourceView == nil, popover.barButtonItem == nil, popover.sourceItem == nil else { return }
+            let view = popover.presentingViewController.view
+            popover.sourceView = view
+            // sourceRect 미지정 시 presenting view 중앙 (화면 크기 대신 뷰 bounds — 폴드/멀티윈도우 대응)
+            popover.sourceRect = sourceRect.isEmpty
+                ? CGRect(x: view?.bounds.midX ?? 0, y: view?.bounds.midY ?? 0, width: 1, height: 1)
+                : sourceRect
+        }
+    }
 }
 
 // MARK: - View+ShareImage
