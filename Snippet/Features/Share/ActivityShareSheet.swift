@@ -5,50 +5,16 @@ import UIKit
 
 /// UIActivityViewController를 SwiftUI에서 사용하기 위한 래퍼.
 ///
-/// iPad에서 popover로 표시되므로 `sourceRect` 파라미터를 전달해야 한다.
+/// SwiftUI `.sheet` 안에 넣어 시트로 표시하므로 popover anchor는 필요 없다.
 struct ActivityShareSheet: UIViewControllerRepresentable {
 
     let activityItems: [Any]
-    var sourceRect: CGRect = .zero
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        let vc = UIActivityViewController(
-            activityItems: activityItems,
-            applicationActivities: nil
-        )
-        // iPad popover anchor — 실제 표시 시점의 presenting view 기준으로 지정 (Coordinator)
-        if let popover = vc.popoverPresentationController {
-            popover.delegate = context.coordinator
-            popover.permittedArrowDirections = .any
-        }
-        return vc
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
     }
 
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
-        context.coordinator.sourceRect = sourceRect
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(sourceRect: sourceRect)
-    }
-
-    final class Coordinator: NSObject, UIPopoverPresentationControllerDelegate {
-        var sourceRect: CGRect
-
-        init(sourceRect: CGRect) {
-            self.sourceRect = sourceRect
-        }
-
-        func prepareForPopoverPresentation(_ popover: UIPopoverPresentationController) {
-            guard popover.sourceView == nil, popover.barButtonItem == nil, popover.sourceItem == nil else { return }
-            let view = popover.presentingViewController.view
-            popover.sourceView = view
-            // sourceRect 미지정 시 presenting view 중앙 (화면 크기 대신 뷰 bounds — 폴드/멀티윈도우 대응)
-            popover.sourceRect = sourceRect.isEmpty
-                ? CGRect(x: view?.bounds.midX ?? 0, y: view?.bounds.midY ?? 0, width: 1, height: 1)
-                : sourceRect
-        }
-    }
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - View+ShareImage
@@ -61,18 +27,15 @@ extension View {
     ///   - isPresented: 시트 표시 바인딩.
     ///   - mode: 공유 카드 콘텐츠 모드.
     ///   - background: 공유 카드 배경.
-    ///   - sourceRect: iPad용 popover anchor rect.
     func shareCard(
         isPresented: Binding<Bool>,
         mode: ShareCardMode,
-        background: ShareCardBackground,
-        sourceRect: CGRect = .zero
+        background: ShareCardBackground
     ) -> some View {
         self.sheet(isPresented: isPresented) {
             ShareCardSheetView(
                 mode: mode,
                 background: background,
-                sourceRect: sourceRect,
                 onDismiss: { isPresented.wrappedValue = false }
             )
             .presentationDetents([.medium])
@@ -87,7 +50,6 @@ private struct ShareCardSheetView: View {
 
     let mode: ShareCardMode
     let background: ShareCardBackground
-    let sourceRect: CGRect
     let onDismiss: () -> Void
 
     @State private var isRendering = false
@@ -123,7 +85,7 @@ private struct ShareCardSheetView: View {
         .padding(.vertical, 24)
         .sheet(isPresented: $showShare) {
             if let url = renderedURL {
-                ActivityShareSheet(activityItems: [url], sourceRect: sourceRect)
+                ActivityShareSheet(activityItems: [url])
                     .ignoresSafeArea()
             }
         }
