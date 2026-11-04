@@ -139,7 +139,19 @@ def signing_xcargs
   "-allowProvisioningUpdates"
 end
 
+# iPhone Duo(폴더블) 대응은 iOS 27.1 SDK 필요 — 그보다 낮은 Xcode로 빌드하면 레거시 모드로 실행된다.
+MIN_XCODE_VERSION = "27.1"
+
+def ensure_min_xcode!
+  version = `xcodebuild -version 2>/dev/null`[/Xcode ([\d.]+)/, 1]
+  UI.user_error!("xcodebuild 버전을 확인할 수 없습니다.") unless version
+  if Gem::Version.new(version) < Gem::Version.new(MIN_XCODE_VERSION)
+    UI.user_error!("Xcode #{MIN_XCODE_VERSION} 이상이 필요합니다 (현재 #{version}). xcode-select 를 확인하세요.")
+  end
+end
+
 def build_ipa
+  ensure_min_xcode!
   verify_asc_env!
   build_app(
     project: XCODEPROJ,
@@ -303,6 +315,7 @@ platform :ios do
   # -------------------------------------------------------
   desc "patch 버전 bump 후 App Store 심사 제출까지 자동 진행"
   lane :release do
+    ensure_min_xcode! # 버전 bump 전에 검사
     key         = api_key
     new_version = ensure_available_version(bump_patch(current_marketing_version))
     new_build   = latest_known_build_number(key, new_version) + 1
