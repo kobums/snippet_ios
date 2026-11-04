@@ -47,6 +47,11 @@ struct HighlighterSelectionView: View {
                 .onTapGesture { location in
                     handleTap(at: location, frame: frame)
                 }
+                .onChange(of: frame) { _, _ in
+                    // 드래그 중 리사이즈되면 이전 좌표계 포인트는 버린다
+                    dragPoints = []
+                    preview = nil
+                }
             }
             .background(Color(.secondarySystemBackground))
 
