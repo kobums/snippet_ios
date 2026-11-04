@@ -25,11 +25,14 @@ struct DashboardTabView: View {
         }
     }
 
+    /// 플로팅 바 실측 높이 — Dynamic Type 등으로 바가 커지면 콘텐츠 시작 위치도 따라 내린다.
+    @State private var floatingBarHeight: CGFloat = 0
+
     var body: some View {
         NavigationStack {
             GeometryReader { proxy in
                 // 상태바 높이 + 플로팅 바 높이만큼 콘텐츠 시작 위치를 내린다
-                let topInset = proxy.safeAreaInsets.top + 64
+                let topInset = proxy.safeAreaInsets.top + max(64, floatingBarHeight + 8)
                 let bottomInset = proxy.safeAreaInsets.bottom + 8
 
                 ZStack(alignment: .top) {
@@ -56,6 +59,7 @@ struct DashboardTabView: View {
                     .ignoresSafeArea(edges: [.top, .bottom])
 
                     floatingBar
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { floatingBarHeight = $0 }
                 }
             }
             .toolbar(.hidden, for: .navigationBar)

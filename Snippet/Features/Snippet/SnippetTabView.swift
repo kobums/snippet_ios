@@ -20,10 +20,13 @@ struct SnippetTabView: View {
         }
     }
 
+    /// 플로팅 바 실측 높이 — Dynamic Type 등으로 바가 커지면 콘텐츠 시작 위치도 따라 내린다.
+    @State private var floatingBarHeight: CGFloat = 0
+
     var body: some View {
         NavigationStack {
             GeometryReader { proxy in
-                let topInset = proxy.safeAreaInsets.top + 76
+                let topInset = proxy.safeAreaInsets.top + max(76, floatingBarHeight + 8)
                 let bottomInset = proxy.safeAreaInsets.bottom + 8
 
                 ZStack(alignment: .top) {
@@ -51,6 +54,7 @@ struct SnippetTabView: View {
                         selection: $selectedSubTab
                     )
                     .padding(.top, 4)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { floatingBarHeight = $0 }
                 }
             }
             .toolbar(.hidden, for: .navigationBar)

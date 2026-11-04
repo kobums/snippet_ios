@@ -5,25 +5,13 @@ import UIKit
 
 /// UIActivityViewController를 SwiftUI에서 사용하기 위한 래퍼.
 ///
-/// iPad에서 popover로 표시되므로 `sourceRect` 파라미터를 전달해야 한다.
+/// SwiftUI `.sheet` 안에 넣어 시트로 표시하므로 popover anchor는 필요 없다.
 struct ActivityShareSheet: UIViewControllerRepresentable {
 
     let activityItems: [Any]
-    var sourceRect: CGRect = .zero
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        let vc = UIActivityViewController(
-            activityItems: activityItems,
-            applicationActivities: nil
-        )
-        // iPad popover anchor
-        if let popover = vc.popoverPresentationController {
-            popover.sourceRect = sourceRect.isEmpty
-                ? CGRect(x: UIScreen.main.bounds.midX, y: UIScreen.main.bounds.midY, width: 1, height: 1)
-                : sourceRect
-            popover.permittedArrowDirections = .any
-        }
-        return vc
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
@@ -39,18 +27,15 @@ extension View {
     ///   - isPresented: 시트 표시 바인딩.
     ///   - mode: 공유 카드 콘텐츠 모드.
     ///   - background: 공유 카드 배경.
-    ///   - sourceRect: iPad용 popover anchor rect.
     func shareCard(
         isPresented: Binding<Bool>,
         mode: ShareCardMode,
-        background: ShareCardBackground,
-        sourceRect: CGRect = .zero
+        background: ShareCardBackground
     ) -> some View {
         self.sheet(isPresented: isPresented) {
             ShareCardSheetView(
                 mode: mode,
                 background: background,
-                sourceRect: sourceRect,
                 onDismiss: { isPresented.wrappedValue = false }
             )
             .presentationDetents([.medium])
@@ -65,7 +50,6 @@ private struct ShareCardSheetView: View {
 
     let mode: ShareCardMode
     let background: ShareCardBackground
-    let sourceRect: CGRect
     let onDismiss: () -> Void
 
     @State private var isRendering = false
@@ -101,7 +85,7 @@ private struct ShareCardSheetView: View {
         .padding(.vertical, 24)
         .sheet(isPresented: $showShare) {
             if let url = renderedURL {
-                ActivityShareSheet(activityItems: [url], sourceRect: sourceRect)
+                ActivityShareSheet(activityItems: [url])
                     .ignoresSafeArea()
             }
         }
