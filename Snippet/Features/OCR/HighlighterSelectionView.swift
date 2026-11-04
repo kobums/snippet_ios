@@ -17,11 +17,11 @@ struct HighlighterSelectionView: View {
     /// 이미지 전체 OCR 실행
     let onRecognizeAll: () -> Void
 
-    /// 화면 표시 좌표 기준 밑줄 목록
+    /// 이미지 프레임 기준 정규화(0~1) 좌표 밑줄 목록 — 컨테이너 크기가 바뀌어도 이미지에 고정된다
     @State private var underlines: [Underline] = []
     /// 드래그 중 라이브 프리뷰 밑줄
     @State private var preview: Underline?
-    /// 드래그 동안 누적된 포인트
+    /// 드래그 동안 누적된 포인트 (화면 표시 좌표)
     @State private var dragPoints: [CGPoint] = []
     /// 선택된 밑줄 id
     @State private var selectedID: UUID?
@@ -38,14 +38,14 @@ struct HighlighterSelectionView: View {
                         .scaledToFit()
 
                     // 밑줄 + 프리뷰 렌더링
-                    UnderlineLayer(underlines: underlines, preview: preview)
+                    UnderlineLayer(underlines: underlines, preview: preview, frame: frame)
                         .allowsHitTesting(false)
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
                 .contentShape(Rectangle())
                 .gesture(dragGesture(frame: frame))
                 .onTapGesture { location in
-                    handleTap(at: location)
+                    handleTap(at: location, frame: frame)
                 }
             }
             .background(Color(.secondarySystemBackground))
@@ -142,21 +142,21 @@ struct HighlighterSelectionView: View {
                 }
                 dragPoints.append(clamp(value.location, to: frame))
                 if dragPoints.count >= 2 {
-                    preview = Underline(points: dragPoints)
+                    preview = Underline(points: dragPoints, in: frame)
                 }
             }
             .onEnded { _ in
                 if dragPoints.count >= 2 {
-                    underlines.append(Underline(points: dragPoints))
+                    underlines.append(Underline(points: dragPoints, in: frame))
                 }
                 dragPoints = []
                 preview = nil
             }
     }
 
-    private func handleTap(at location: CGPoint) {
+    private func handleTap(at location: CGPoint, frame: CGRect) {
         // 위에 그려진(나중에 추가된) 밑줄부터 히트 테스트
-        if let hit = underlines.reversed().first(where: { $0.rect.contains(location) }) {
+        if let hit = underlines.reversed().first(where: { $0.rect(in: frame).contains(location) }) {
             selectedID = hit.id
             setSelection(hit.id)
         } else {
@@ -186,23 +186,10 @@ struct HighlighterSelectionView: View {
 
     // MARK: - 정규화 좌표 변환
 
-    /// 각 밑줄을 표시 이미지 프레임 기준 좌상단 원점 정규화(0~1) 사각형으로 변환.
-    /// 밑줄 좌표는 GeometryReader 컨테이너 좌표계이고, 이미지 letterbox 프레임은
-    /// `layoutFrame`(imageFrame 계산 결과)로 보관해 두었다가 변환에 사용한다.
+    /// 각 밑줄을 표시 이미지 프레임 기준 좌상단 원점 정규화(0~1) 사각형으로 반환.
     private func normalizedRegions() -> [CGRect] {
-        guard let frame = layoutFrame, frame.width > 0, frame.height > 0 else { return [] }
-        return underlines.map { u in
-            CGRect(
-                x: (u.rect.minX - frame.minX) / frame.width,
-                y: (u.rect.minY - frame.minY) / frame.height,
-                width: u.rect.width / frame.width,
-                height: u.rect.height / frame.height
-            ).intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
-        }
+        underlines.map { $0.normalizedRect.intersection(CGRect(x: 0, y: 0, width: 1, height: 1)) }
     }
-
-    /// 마지막으로 계산된 표시 이미지 프레임 (정규화 변환용)
-    @State private var layoutFrame: CGRect?
 
     /// 컨테이너 크기 안에서 이미지가 aspect-fit으로 표시되는 실제 사각형
     private func imageFrame(in container: CGSize) -> CGRect {
@@ -212,17 +199,12 @@ struct HighlighterSelectionView: View {
         }
         let scale = min(container.width / imageSize.width, container.height / imageSize.height)
         let displaySize = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
-        let frame = CGRect(
+        return CGRect(
             x: (container.width - displaySize.width) / 2,
             y: (container.height - displaySize.height) / 2,
             width: displaySize.width,
             height: displaySize.height
         )
-        // 변환에 쓰기 위해 보관 (렌더 중 직접 대입은 피하고 다음 런루프에 반영)
-        DispatchQueue.main.async {
-            if layoutFrame != frame { layoutFrame = frame }
-        }
-        return frame
     }
 
     private func clamp(_ point: CGPoint, to frame: CGRect) -> CGPoint {
@@ -235,7 +217,8 @@ struct HighlighterSelectionView: View {
 
 // MARK: - Underline 모델
 
-/// 화면 표시 좌표 기준 수평 밑줄.
+/// 이미지 프레임 기준 정규화(0~1, 좌상단 원점) 좌표로 저장되는 수평 밑줄.
+/// 폴드/언폴드 등으로 컨테이너가 리사이즈돼도 이미지 위 같은 위치를 유지한다.
 private struct Underline: Identifiable {
     let id = UUID()
     let startX: CGFloat
@@ -246,25 +229,47 @@ private struct Underline: Identifiable {
     let height: CGFloat
     var isSelected: Bool = false
 
-    /// 드래그 포인트 묶음으로부터 수평 밑줄 생성.
+    /// 화면 표시 좌표의 드래그 포인트 묶음으로부터 수평 밑줄 생성.
     /// Flutter `_convertToStraightLine` 규칙 이식: minX..maxX, 평균 Y, height = clamp((maxY-minY)*3, 40, 80).
-    init(points: [CGPoint]) {
+    init(points: [CGPoint], in frame: CGRect) {
         let xs = points.map(\.x)
         let ys = points.map(\.y)
-        startX = xs.min() ?? 0
-        endX = xs.max() ?? 0
-        centerY = ys.reduce(0, +) / CGFloat(max(points.count, 1))
         let yRange = (ys.max() ?? 0) - (ys.min() ?? 0)
-        height = min(max(yRange * 3, 40), 80)
+        let w = max(frame.width, 1)
+        let h = max(frame.height, 1)
+        startX = ((xs.min() ?? 0) - frame.minX) / w
+        endX = ((xs.max() ?? 0) - frame.minX) / w
+        centerY = (ys.reduce(0, +) / CGFloat(max(points.count, 1)) - frame.minY) / h
+        height = min(max(yRange * 3, 40), 80) / h
     }
 
-    /// 영역 사각형 (히트 테스트 + 정규화에 사용)
-    var rect: CGRect {
+    /// 정규화 영역 사각형 (OCR 영역)
+    var normalizedRect: CGRect {
         CGRect(
             x: min(startX, endX),
             y: centerY - height / 2,
             width: abs(endX - startX),
             height: height
+        )
+    }
+
+    /// 현재 이미지 프레임 기준 화면 표시 사각형 (히트 테스트 + 렌더링)
+    func rect(in frame: CGRect) -> CGRect {
+        let r = normalizedRect
+        return CGRect(
+            x: frame.minX + r.minX * frame.width,
+            y: frame.minY + r.minY * frame.height,
+            width: r.width * frame.width,
+            height: r.height * frame.height
+        )
+    }
+
+    /// 현재 이미지 프레임 기준 중앙선 양 끝점
+    func line(in frame: CGRect) -> (CGPoint, CGPoint) {
+        let y = frame.minY + centerY * frame.height
+        return (
+            CGPoint(x: frame.minX + startX * frame.width, y: y),
+            CGPoint(x: frame.minX + endX * frame.width, y: y)
         )
     }
 }
@@ -276,6 +281,8 @@ private struct Underline: Identifiable {
 private struct UnderlineLayer: View {
     let underlines: [Underline]
     let preview: Underline?
+    /// 표시 이미지 프레임 (정규화 좌표 → 화면 좌표 변환용)
+    let frame: CGRect
 
     var body: some View {
         Canvas { context, _ in
@@ -283,16 +290,17 @@ private struct UnderlineLayer: View {
             if let preview { all.append(preview) }
 
             for u in all {
-                let rect = u.rect
+                let rect = u.rect(in: frame)
                 let path = Path(rect)
 
                 // 1. 배경 반투명 노랑
                 context.fill(path, with: .color(Color.yellow.opacity(0.2)))
 
                 // 2. 중앙 수평 두꺼운 노란 선
+                let (start, end) = u.line(in: frame)
                 var line = Path()
-                line.move(to: CGPoint(x: u.startX, y: u.centerY))
-                line.addLine(to: CGPoint(x: u.endX, y: u.centerY))
+                line.move(to: start)
+                line.addLine(to: end)
                 context.stroke(
                     line,
                     with: .color(Color.yellow),
