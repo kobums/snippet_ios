@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- SpringBoard 디스플레이 테스트 서비스(com.apple.springboard.sbdisplay) 접근 권한. 시뮬레이터 전용. -->
+	<key>com.apple.springboard.sbdisplay.service</key>
+	<true/>
+</dict>
+</plist>
