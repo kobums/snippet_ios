@@ -26,8 +26,8 @@ struct SnippetTabView: View {
     var body: some View {
         NavigationStack {
             GeometryReader { proxy in
-                let topInset = proxy.safeAreaInsets.top + max(76, floatingBarHeight + 8)
-                let bottomInset = proxy.safeAreaInsets.bottom + 8
+                let topInset = proxy.stableSafeAreaInsets.top + max(76, floatingBarHeight + 8)
+                let bottomInset = proxy.stableSafeAreaInsets.bottom + 8
 
                 ZStack(alignment: .top) {
                     ZStack {

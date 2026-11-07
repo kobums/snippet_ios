@@ -83,6 +83,7 @@ struct SessionsListView: View {
                     }
                 }
                 .listStyle(.plain)
+                .readableContentMargins()
                 .contentMargins(.top, topInset, for: .scrollContent)
                 .contentMargins(.bottom, bottomInset, for: .scrollContent)
                 .refreshable {

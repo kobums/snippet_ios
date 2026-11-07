@@ -74,6 +74,7 @@ struct BookDetailView: View {
             }
             .animation(.smooth(duration: 0.35), value: localBook.status)
             .animation(.smooth(duration: 0.35), value: localBook.type)
+            .readableWidth()
         }
         .background(alignment: .top) {
             ambientCoverBackground
@@ -791,6 +792,7 @@ private struct BookRecordsListView: View {
 
                 Spacer(minLength: 32)
             }
+            .readableWidth()
         }
         .navigationTitle("기록")
         .navigationBarTitleDisplayMode(.inline)
@@ -831,6 +833,7 @@ private struct BookSessionsListView: View {
                 }
             }
             .padding(.vertical, 8)
+            .readableWidth()
 
             Spacer(minLength: 32)
         }

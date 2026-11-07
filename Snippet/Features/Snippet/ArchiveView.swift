@@ -57,6 +57,7 @@ struct ArchiveView: View {
                 }
             }
             .padding(16)
+            .readableWidth()
         }
     }
 }

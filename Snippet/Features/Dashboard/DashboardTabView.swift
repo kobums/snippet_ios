@@ -32,8 +32,8 @@ struct DashboardTabView: View {
         NavigationStack {
             GeometryReader { proxy in
                 // 상태바 높이 + 플로팅 바 높이만큼 콘텐츠 시작 위치를 내린다
-                let topInset = proxy.safeAreaInsets.top + max(64, floatingBarHeight + 8)
-                let bottomInset = proxy.safeAreaInsets.bottom + 8
+                let topInset = proxy.stableSafeAreaInsets.top + max(64, floatingBarHeight + 8)
+                let bottomInset = proxy.stableSafeAreaInsets.bottom + 8
 
                 ZStack(alignment: .top) {
                     // 페이지형 TabView는 엣지-투-엣지 구성에서 selection 변경을 무시하는
@@ -81,31 +81,43 @@ struct DashboardTabView: View {
 
     // MARK: - 플로팅 바 — 상단에서 콘텐츠 위에 부유. [탭바] [년월] [통계버튼] 한 줄.
 
+    /// 한 줄에 다 안 들어가는 폭(좁은 창·큰 글자 크기)에서는 컴팩트 크기로 바꾼다.
     private var floatingBar: some View {
-        HStack(spacing: 10) {
-            subTabBar
+        ViewThatFits(in: .horizontal) {
+            floatingBarRow(compact: false)
+            floatingBarRow(compact: true)
+        }
+        .padding(.top, 4)
+        .padding(.horizontal, 12)
+    }
+
+    private func floatingBarRow(compact: Bool) -> some View {
+        HStack(spacing: compact ? 8 : 10) {
+            // 년월 버튼도 줄어들 수 있는 뷰라 HStack이 폭을 반씩 나눠 주면 서브탭이 남는 폭이 있는데도
+            // "통/계"처럼 꺾인다(Duo 바깥 화면·iPhone 16e/17e). 서브탭에 먼저 폭을 준다.
+            subTabBar(compact: compact)
+                .layoutPriority(1)
 
             // 년월 — 애플 휠 피커 시트
             Button {
                 showMonthPicker = true
             } label: {
                 Text("\(String(vm.selectedYear))년 \(vm.selectedMonth)월")
-                    .font(.subheadline.weight(.medium))
+                    .font(compact ? .footnote.weight(.medium) : .subheadline.weight(.medium))
                     .padding(.vertical, 6)
             }
             .buttonStyle(.glass)
 
             statsDetailButton
         }
-        .padding(.top, 4)
-        .padding(.horizontal, 12)
     }
 
     /// 서브탭 바 — 하단 탭바(bottom navigation)와 같은 글래스 캡슐 + 선택 필 슬라이드.
-    private var subTabBar: some View {
+    private func subTabBar(compact: Bool) -> some View {
         FloatingSubTabBar(
             tabs: SubTab.allCases.map { ($0, $0.title) },
-            selection: $selectedSubTab
+            selection: $selectedSubTab,
+            compact: compact
         )
     }
 
@@ -245,6 +257,7 @@ private struct DashboardStatsSection: View {
                 Spacer(minLength: 24)
             }
             .padding(.top, 8)
+            .readableWidth()
         }
         .contentMargins(.top, topInset, for: .scrollContent)
         .contentMargins(.bottom, bottomInset, for: .scrollContent)
@@ -324,6 +337,7 @@ private struct DashboardProgressSection: View {
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             statusFilterBar
+                .readableWidth()
                 .padding(.top, topInset)
         }
     }
@@ -343,6 +357,7 @@ private struct DashboardProgressSection: View {
                 .listRowSeparator(.hidden)
         }
         .listStyle(.plain)
+        .readableContentMargins()
         .contentMargins(.bottom, bottomInset, for: .scrollContent)
         .refreshable { await vm.refreshProgress() }
     }
@@ -417,6 +432,7 @@ private struct DashboardLibrarySection: View {
                     .listRowSeparator(.hidden)
             }
             .listStyle(.plain)
+            .readableContentMargins()
             .contentMargins(.bottom, bottomInset, for: .scrollContent)
             .refreshable { await vm.refreshLibrary() }
             .safeAreaInset(edge: .top, spacing: 0) {
