@@ -45,8 +45,8 @@ struct RecordsTabView: View {
     var body: some View {
         NavigationStack {
             GeometryReader { proxy in
-                let topInset = proxy.safeAreaInsets.top + max(64, floatingBarHeight + 8)
-                let bottomInset = proxy.safeAreaInsets.bottom + 8
+                let topInset = proxy.stableSafeAreaInsets.top + max(64, floatingBarHeight + 8)
+                let bottomInset = proxy.stableSafeAreaInsets.bottom + 8
 
                 ZStack(alignment: .top) {
                     // 탭 순서 방향으로 밀려 들어오는 전환 — 대시보드·통계 상세와 같은 문법(공간 일관성).

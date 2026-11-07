@@ -32,8 +32,8 @@ struct DashboardTabView: View {
         NavigationStack {
             GeometryReader { proxy in
                 // 상태바 높이 + 플로팅 바 높이만큼 콘텐츠 시작 위치를 내린다
-                let topInset = proxy.safeAreaInsets.top + max(64, floatingBarHeight + 8)
-                let bottomInset = proxy.safeAreaInsets.bottom + 8
+                let topInset = proxy.stableSafeAreaInsets.top + max(64, floatingBarHeight + 8)
+                let bottomInset = proxy.stableSafeAreaInsets.bottom + 8
 
                 ZStack(alignment: .top) {
                     // 페이지형 TabView는 엣지-투-엣지 구성에서 selection 변경을 무시하는
