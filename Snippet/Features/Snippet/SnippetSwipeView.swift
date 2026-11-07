@@ -1,5 +1,15 @@
 import SwiftUI
 
+// MARK: - Layout
+
+/// 카드 스택 치수. 카드는 최대 400pt, 좌우 여백 24pt — 이보다 넓은 화면(Duo 안쪽·iPad)에서도 폰과 같은 크기·감도로 쓴다.
+private enum SwipeLayout {
+    static let maxCardWidth: CGFloat = 400
+    static let horizontalPadding: CGFloat = 24
+    /// 카드 + 좌우 여백. 스와이프 임계값·회전 기준 폭의 상한이자 하단 컨트롤 최대 폭.
+    static var maxStackWidth: CGFloat { maxCardWidth + horizontalPadding * 2 }
+}
+
 // MARK: - SnippetSwipeView
 
 /// 스니펫 스와이프 탭 — 카드 스택 + DragGesture 물리.
@@ -46,14 +56,17 @@ struct SnippetSwipeView: View {
                         )
                     }
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, SwipeLayout.horizontalPadding)
                 .padding(.bottom, 20)
+                // GeometryReader는 자식을 왼쪽 위에 둔다 — 카드보다 넓은 화면에서 가로 가운데로
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
             }
 
             // 하단 컨트롤 — Pass 힌트 · X · 하트 · Like 힌트 한 줄
             if let topCard = vm.cards.first {
                 bottomControls(card: topCard)
                     .padding(.horizontal, 28)
+                    .frame(maxWidth: SwipeLayout.maxStackWidth)
                     .padding(.bottom, 12)
             }
         }
@@ -141,12 +154,15 @@ private struct SwipeCardView: View {
     @State private var offset: CGSize = .zero
     @State private var isDragging = false
 
+    /// 스와이프 판정·회전 기준 폭. 폰(≤448pt)에선 컨테이너 폭 그대로, 그보다 넓으면 폰 최대치로 고정.
+    private var gestureWidth: CGFloat { min(totalWidth, SwipeLayout.maxStackWidth) }
+
     private var scaleEffect: CGFloat { 1.0 - CGFloat(index) * 0.05 }
     private var yOffset: CGFloat { CGFloat(index) * 8 }
 
     /// 드래그 비율 (-1.0 ~ 1.0)
     private var dragRatio: CGFloat {
-        let threshold = totalWidth * 0.4
+        let threshold = gestureWidth * 0.4
         return (offset.width / threshold).clamped(to: -1...1)
     }
 
@@ -156,7 +172,7 @@ private struct SwipeCardView: View {
                 .overlay(alignment: .topLeading) { likePassOverlay }
         }
         .offset(x: offset.width, y: offset.height * 0.3)
-        .rotationEffect(.degrees(Double(offset.width / totalWidth) * 8))
+        .rotationEffect(.degrees(Double(offset.width / gestureWidth) * 8))
         .scaleEffect(isDragging ? 1.0 : scaleEffect)
         .offset(y: isDragging ? 0 : yOffset)
         .gesture(dragGesture)
@@ -217,7 +233,7 @@ private struct SwipeCardView: View {
                 .stroke(Color(.separator).opacity(0.5), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
-        .frame(maxWidth: 400)
+        .frame(maxWidth: SwipeLayout.maxCardWidth)
     }
 
     // MARK: - LIKE/NOPE 오버레이
@@ -269,7 +285,7 @@ private struct SwipeCardView: View {
                 }
             }
             .onEnded { value in
-                let threshold = totalWidth * 0.4
+                let threshold = gestureWidth * 0.4
                 let translationX = value.translation.width
                 let velocityX = value.predictedEndTranslation.width
 
@@ -279,7 +295,9 @@ private struct SwipeCardView: View {
 
                 if isLike || isPass {
                     Haptics.medium()
-                    let flyOffX: CGFloat = isLike ? 600 : -600
+                    // 가운데 놓인 카드가 끝까지 화면 밖으로 나가도록 — 폰에선 600pt 그대로, 넓은 화면은 컨테이너 폭만큼
+                    let flyDistance = max(600, totalWidth)
+                    let flyOffX: CGFloat = isLike ? flyDistance : -flyDistance
                     withAnimation(.easeOut(duration: 0.25)) {
                         offset = CGSize(width: flyOffX, height: value.translation.height)
                     }
