@@ -39,6 +39,7 @@ ui.build_configurations.each do |c|
   c.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'com.gowoobro.snippet.duouitests'
   c.build_settings['TEST_TARGET_NAME'] = 'DuoHost'
 end
+proj.predictabilize_uuids   # 다시 생성해도 대부분의 UUID가 그대로라 diff가 작다 (타깃 의존성 두 개만 바뀜)
 proj.save
 
 scheme = Xcodeproj::XCScheme.new

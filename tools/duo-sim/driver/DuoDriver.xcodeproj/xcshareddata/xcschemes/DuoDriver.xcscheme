@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "E66881D4E55C6C1987FB9E27"
+               BlueprintIdentifier = "9B899B0924A6B48D5F9581AC3A06CF74"
                BuildableName = "DuoHost.app"
                BlueprintName = "DuoHost"
                ReferencedContainer = "container:DuoDriver.xcodeproj">
@@ -30,7 +30,7 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "E66881D4E55C6C1987FB9E27"
+            BlueprintIdentifier = "9B899B0924A6B48D5F9581AC3A06CF74"
             BuildableName = "DuoHost.app"
             BlueprintName = "DuoHost"
             ReferencedContainer = "container:DuoDriver.xcodeproj">
@@ -41,7 +41,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "7316DAB2BD787A5D4E15EB26"
+               BlueprintIdentifier = "FFB7834B691A68EB2183208A7A9EBA5B"
                BuildableName = "DuoUITests.xctest"
                BlueprintName = "DuoUITests"
                ReferencedContainer = "container:DuoDriver.xcodeproj">
@@ -63,7 +63,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "E66881D4E55C6C1987FB9E27"
+            BlueprintIdentifier = "9B899B0924A6B48D5F9581AC3A06CF74"
             BuildableName = "DuoHost.app"
             BlueprintName = "DuoHost"
             ReferencedContainer = "container:DuoDriver.xcodeproj">
@@ -80,7 +80,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "E66881D4E55C6C1987FB9E27"
+            BlueprintIdentifier = "9B899B0924A6B48D5F9581AC3A06CF74"
             BuildableName = "DuoHost.app"
             BlueprintName = "DuoHost"
             ReferencedContainer = "container:DuoDriver.xcodeproj">

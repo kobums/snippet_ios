@@ -107,7 +107,8 @@ xcodebuild build-for-testing -project "$HERE/driver/DuoDriver.xcodeproj" -scheme
 XCTESTRUN=$(ls "$BUILD"/driver/Build/Products/*.xctestrun | head -1)
 
 # 8. 호스트 브리지 (접기·펴기, 디스플레이별 캡처)
-IPC="$BUILD/ipc"; rm -rf "$IPC"; mkdir -p "$IPC"
+# 실행마다 따로 — 앞선 실행이 남긴 watcher가 같은 요청을 집어 가지 않도록
+IPC="$BUILD/ipc/$RUN"; rm -rf "$IPC"; mkdir -p "$IPC"
 "$HERE/scripts/watcher.sh" "$DEV" "$IPC" "$OUT_BASE" "$BUILD/duotool" > "$OUT/watcher.log" 2>&1 &
 PIDS+=($!)
 
