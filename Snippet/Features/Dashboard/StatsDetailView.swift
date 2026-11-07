@@ -261,6 +261,7 @@ private struct PeriodStatsTab: View {
                 Spacer(minLength: 24)
             }
             .padding(.top, 16)
+            .readableWidth()
         }
     }
 }
@@ -320,6 +321,7 @@ private struct CategoryStatsTab: View {
                 Spacer(minLength: 24)
             }
             .padding(.top, 16)
+            .readableWidth()
         }
     }
 }
@@ -382,6 +384,7 @@ private struct InsightsTab: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
                 .animation(.smooth(duration: 0.3), value: ins)
+                .readableWidth()
             } else {
                 EmptyStateView(
                     systemImage: "lightbulb",

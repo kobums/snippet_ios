@@ -257,6 +257,7 @@ private struct DashboardStatsSection: View {
                 Spacer(minLength: 24)
             }
             .padding(.top, 8)
+            .readableWidth()
         }
         .contentMargins(.top, topInset, for: .scrollContent)
         .contentMargins(.bottom, bottomInset, for: .scrollContent)
@@ -336,6 +337,7 @@ private struct DashboardProgressSection: View {
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             statusFilterBar
+                .readableWidth()
                 .padding(.top, topInset)
         }
     }
@@ -355,6 +357,7 @@ private struct DashboardProgressSection: View {
                 .listRowSeparator(.hidden)
         }
         .listStyle(.plain)
+        .readableContentMargins()
         .contentMargins(.bottom, bottomInset, for: .scrollContent)
         .refreshable { await vm.refreshProgress() }
     }
@@ -429,6 +432,7 @@ private struct DashboardLibrarySection: View {
                     .listRowSeparator(.hidden)
             }
             .listStyle(.plain)
+            .readableContentMargins()
             .contentMargins(.bottom, bottomInset, for: .scrollContent)
             .refreshable { await vm.refreshLibrary() }
             .safeAreaInset(edge: .top, spacing: 0) {
