@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - PopularBooksView
 
-/// 인기 도서 목록 (국립중앙도서관 인기 대출 기반).
+/// 인기 도서 목록 (YES24 베스트셀러 — 서버가 실패 시 도서관정보나루 인기 대출로 대체).
 /// 필터: 기간 / 장르(KDC) / 연령 / 성별 — 글래스 칩 Menu 한 줄로 압축.
 struct PopularBooksView: View {
 
@@ -124,6 +124,7 @@ struct PopularBooksView: View {
             // 필터 칩은 플로팅 글래스 크롬 — 리스트가 아래로 스크롤되며 비쳐 보인다.
             .safeAreaInset(edge: .top, spacing: 0) { filterBar }
             .navigationTitle("인기 도서")
+            .navigationSubtitle("YES24 베스트셀러")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -287,7 +288,7 @@ private struct PopularBookRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
-                Text(book.publisher)
+                Text([book.publisher, book.categoryLabel].filter { !$0.isEmpty }.joined(separator: " · "))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)

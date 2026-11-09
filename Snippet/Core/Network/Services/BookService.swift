@@ -18,7 +18,7 @@ struct BookService: Sendable {
         )
     }
 
-    /// GET /books/popular — 국립중앙도서관 인기 대출 도서. 빈 값 파라미터는 미전송.
+    /// GET /books/popular — YES24 베스트셀러 (서버가 필터 값을 변환). 빈 값 파라미터는 미전송.
     func popular(_ query: PopularBooksQuery = PopularBooksQuery()) async throws -> [PopularBookDto] {
         var queryItems: [URLQueryItem] = []
         let optionalParams: [(String, String?)] = [

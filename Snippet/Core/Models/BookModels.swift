@@ -22,7 +22,7 @@ struct BookSearchDto: Codable, Equatable, Sendable {
     }
 }
 
-/// GET /books/popular 응답 항목 (국립중앙도서관 인기 대출 도서).
+/// GET /books/popular 응답 항목 (YES24 베스트셀러, 실패 시 도서관정보나루 인기 대출 — 이때만 loanCount가 있다).
 /// 모든 필드 null-safe 폴백 (숫자 0, 문자열 "") — 문서 §3.6.
 struct PopularBookDto: Codable, Equatable, Sendable {
     let rank: Int
@@ -46,6 +46,11 @@ struct PopularBookDto: Codable, Equatable, Sendable {
         kdcName = try c.decodeIfPresent(String.self, forKey: .kdcName) ?? ""
         loanCount = try c.decodeIfPresent(Int.self, forKey: .loanCount) ?? 0
         coverUrl = try c.decodeIfPresent(String.self, forKey: .coverUrl)?.httpsUpgradedURLString ?? ""
+    }
+
+    /// 분류 마지막 단계 ("문학 > 한국문학 > 소설" → "소설", YES24는 "소설/시/희곡" 그대로).
+    var categoryLabel: String {
+        kdcName.components(separatedBy: ">").last?.trimmingCharacters(in: .whitespaces) ?? ""
     }
 }
 
