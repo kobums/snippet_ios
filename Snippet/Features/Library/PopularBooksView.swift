@@ -16,24 +16,15 @@ struct PopularBooksView: View {
     @State private var selectedAge: AgeFilter = .all
     @State private var selectedGender: GenderFilter = .all
 
+    /// YES24는 주간(종합)·월간 순위만 있다 — 서버는 기간이 2주를 넘으면 월간 순위를 준다.
     enum PeriodFilter: String, CaseIterable {
-        case week = "1주일"
-        case month = "1개월"
-        case threeMonths = "3개월"
-        case halfYear = "6개월"
-        case year = "1년"
+        case week = "주간"
+        case month = "월간"
 
         var dateRange: (start: String, end: String) {
             let end = APIDate.dayString()
             let calendar = Calendar.current
-            let days: Int
-            switch self {
-            case .week: days = 7
-            case .month: days = 30
-            case .threeMonths: days = 90
-            case .halfYear: days = 180
-            case .year: days = 365
-            }
+            let days = self == .week ? 7 : 30
             let start = APIDate.dayString(from: calendar.date(byAdding: .day, value: -days, to: Date()) ?? Date())
             return (start, end)
         }
