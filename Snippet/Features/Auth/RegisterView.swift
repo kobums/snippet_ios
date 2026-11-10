@@ -116,6 +116,9 @@ struct RegisterView: View {
                     registerButton
                         .padding(.top, 8)
 
+                    agreementNotice
+                        .frame(maxWidth: .infinity)
+
                     loginLink
                         .frame(maxWidth: .infinity)
                 }
@@ -338,6 +341,14 @@ struct RegisterView: View {
         .foregroundStyle(Color.onAccent)
         .controlSize(.large)
         .disabled(isRegistering)
+    }
+
+    /// 가입 = 약관 동의 안내. 링크는 브라우저로 연다.
+    private var agreementNotice: some View {
+        Text("가입하면 [이용약관](https://gowoobro.com/ko/app/15/terms) 및 [개인정보 처리방침](https://gowoobro.com/ko/app/15/privacy)에 동의하는 것으로 간주됩니다.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
     }
 
     private var loginLink: some View {
