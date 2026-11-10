@@ -138,6 +138,16 @@ struct ProfileView: View {
                     .foregroundStyle(.primary)
             }
 
+            // 이용약관 · 개인정보 처리방침 — 브라우저로 열기
+            Link(destination: URL(string: "https://gowoobro.com/ko/app/15/terms")!) {
+                Label("이용약관", systemImage: "doc.text")
+                    .foregroundStyle(.primary)
+            }
+            Link(destination: URL(string: "https://gowoobro.com/ko/app/15/privacy")!) {
+                Label("개인정보 처리방침", systemImage: "hand.raised")
+                    .foregroundStyle(.primary)
+            }
+
             // 앱 정보
             Button {
                 showAppInfo = true
